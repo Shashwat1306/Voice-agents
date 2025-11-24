@@ -30,74 +30,83 @@ load_dotenv(".env.local")
 
 class Assistant(Agent):
     def __init__(self) -> None:
+        # Load previous check-ins (if any) to include a short memory reference in the instructions
+        last_entry = self._load_last_entry()
+
+        memory_hint = ""
+        if last_entry:
+            # keep this short and factual to avoid leakage of sensitive details
+            last_dt = last_entry.get("timestamp")
+            last_mood = last_entry.get("mood")
+            last_energy = last_entry.get("energy")
+            memory_hint = (
+                f"Last check-in was on {last_dt}. They reported mood: '{last_mood}' and energy: '{last_energy}'. "
+                "When appropriate, briefly reference this to compare today to last time."
+            )
+
         super().__init__(
-            instructions="""You are a friendly and enthusiastic barista working at StarBucks. The user is interacting with you via voice.
-            
-            Your job is to take coffee orders from customers. You need to gather the following information for each order:
-            1. Drink type (e.g., latte, cappuccino, espresso, americano, mocha, flat white, etc.)
-            2. Size (small, medium, or large)
-            3. Milk preference (whole milk, skim milk, oat milk, almond milk, soy milk, or no milk)
-            4. Extras (e.g., extra shot, whipped cream, caramel drizzle, vanilla syrup, chocolate syrup, cinnamon, etc.)
-            5. Customer name for the order
-            
-            Start by greeting the customer warmly and asking what they would like to order.
-            Ask clarifying questions one at a time to gather all the information needed.
-            Be conversational and friendly, making suggestions when appropriate.
-            Once you have all the information, confirm the complete order with the customer.
-            After confirmation, use the save_order tool to finalize the order.
-            
-            Keep your responses concise and natural, without complex formatting, emojis, or asterisks.
-            Be enthusiastic about coffee and make the customer feel welcome.""",
+            instructions=(
+                "You are a calm, supportive daily health & wellness voice companion. The user interacts with you by voice. "
+                "You are NOT a clinician and must not offer medical diagnoses or medical advice. Your role is supportive: help the user reflect, set small daily intentions, and offer simple, practical, non-medical suggestions. "
+                + memory_hint + "\n\n"
+                "Primary check-in flow (keep it short and conversational):\n"
+                "1) Greet briefly and ask about mood: 'How are you feeling today?' (allow open text or a simple scale).\n"
+                "2) Ask about energy: 'What's your energy like today?'\n"
+                "3) Ask about stressors: 'Anything stressing you out right now?' (optional).\n"
+                "4) Ask for 1–3 objectives: 'What are 1–3 things you'd like to get done today?'\n"
+                "5) Ask about self-care: 'Is there anything you want to do for yourself (rest, exercise, hobbies)?'\n"
+                "6) Offer one or two short, actionable, non-medical suggestions tailored to their answers (e.g., break a large task into a smaller step, take a 5-minute walk, try a breathing exercise, schedule a short break). Keep suggestions realistic and brief.\n"
+                "7) Close by repeating back a short recap: today's mood summary, the main 1–3 objectives, and ask 'Does this sound right?'.\n\n"
+                "When the check-in finishes, call the tool 'save_checkin' to persist a brief structured summary of the session. The saved entry should include date/time, mood, energy, objectives, optional self-care, and a short agent-generated summary sentence.\n"
+                "Keep responses concise and grounded; avoid long multi-paragraph replies. Use friendly, empathetic language and respect user privacy."
+            )
         )
-        
-        # Initialize order state
-        self.current_order = {
-            "drinkType": None,
-            "size": None,
-            "milk": None,
-            "extras": [],
-            "name": None
-        }
 
     @function_tool
-    async def save_order(self, context: RunContext, drink_type: str, size: str, milk: str, extras: str, customer_name: str):
-        """Use this tool to save a completed coffee order to a JSON file. Call this ONLY after confirming all order details with the customer.
-        
+    async def save_checkin(self, context: RunContext, mood: str, energy: str, objectives: str, self_care: str = ""):
+        """Persist a wellness check-in to a single JSON file.
+
         Args:
-            drink_type: The type of drink ordered (e.g., latte, cappuccino, espresso)
-            size: The size of the drink (small, medium, or large)
-            milk: The type of milk (whole, skim, oat, almond, soy, or none)
-            extras: Comma-separated list of extras (e.g., extra shot, whipped cream, vanilla syrup)
-            customer_name: The customer's name for the order
+            mood: Short text or scale describing mood.
+            energy: Short text or scale describing energy.
+            objectives: User-stated objectives (1-3 items, comma- or newline-separated).
+            self_care: Optional self-care intention.
+        Returns:
+            A confirmation string for the user.
         """
-        
-        logger.info(f"Saving order for {customer_name}")
-        
-        # Parse extras into a list
-        extras_list = [extra.strip() for extra in extras.split(",") if extra.strip()] if extras else []
 
-        # Create a stable order id (previously used as filename)
-        order_id = f"order_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{customer_name.replace(' ', '_')}"
+        logger.info("Saving wellness check-in")
 
-        # Create order object
-        order = {
-            "id": order_id,
-            "drinkType": drink_type,
-            "size": size,
-            "milk": milk,
-            "extras": extras_list,
-            "name": customer_name,
+        # normalize objectives into a list
+        objectives_list = [o.strip() for o in objectives.replace("\r", "\n").split("\n") if o.strip()]
+        if len(objectives_list) == 1 and "," in objectives_list[0]:
+            objectives_list = [o.strip() for o in objectives_list[0].split(",") if o.strip()]
+
+        # Agent-generated short summary
+        summary_parts = []
+        if mood:
+            summary_parts.append(f"mood: {mood}")
+        if energy:
+            summary_parts.append(f"energy: {energy}")
+        if objectives_list:
+            summary_parts.append(f"objectives: {', '.join(objectives_list[:3])}")
+
+        agent_summary = " | ".join(summary_parts)
+
+        entry = {
             "timestamp": datetime.now().isoformat(),
-            "status": "confirmed"
+            "mood": mood,
+            "energy": energy,
+            "objectives": objectives_list,
+            "self_care": self_care,
+            "agent_summary": agent_summary,
         }
 
-        # Save to a single JSON array file (atomic replace)
-        orders_dir = Path("orders")
-        orders_dir.mkdir(exist_ok=True)
+        # write to a single JSON file in the backend directory
+        backend_dir = Path(__file__).resolve().parents[1]
+        json_path = backend_dir / "wellness_log.json"
 
-        json_path = orders_dir / "orders.json"
-
-        # Load existing orders if present
+        # Load existing entries
         if json_path.exists():
             try:
                 with open(json_path, "r", encoding="utf-8") as f:
@@ -109,18 +118,32 @@ class Assistant(Agent):
         else:
             existing = []
 
-        existing.append(order)
+        existing.append(entry)
 
-        # Write atomically via a temp file + replace
-        with tempfile.NamedTemporaryFile("w", delete=False, dir=str(orders_dir), encoding="utf-8") as tmp:
+        # atomic write
+        with tempfile.NamedTemporaryFile("w", delete=False, dir=str(backend_dir), encoding="utf-8") as tmp:
             json.dump(existing, tmp, indent=2, ensure_ascii=False)
             tmp_name = tmp.name
 
         os.replace(tmp_name, str(json_path))
 
-        logger.info(f"Order added to {json_path}")
+        logger.info(f"Check-in added to {json_path}")
 
-        return f"Order saved successfully! Your {size} {drink_type} with {milk} will be ready soon, {customer_name}. Order ID: {order_id}"
+        return "Thanks — I've saved this check-in. I'll remember it for next time."
+
+    def _load_last_entry(self):
+        try:
+            backend_dir = Path(__file__).resolve().parents[1]
+            json_path = backend_dir / "wellness_log.json"
+            if not json_path.exists():
+                return None
+            with open(json_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, list) and data:
+                    return data[-1]
+        except Exception:
+            return None
+        return None
 
 
 def prewarm(proc: JobProcess):

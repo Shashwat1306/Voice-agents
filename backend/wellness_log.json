@@ -1,0 +1,26 @@
+[
+  {
+    "timestamp": "2025-11-24T16:51:49.426159",
+    "mood": "Good, better",
+    "energy": "Low side but improving",
+    "objectives": [
+      "Study",
+      "play guitar",
+      "exercise"
+    ],
+    "self_care": "Play guitar",
+    "agent_summary": "mood: Good, better | energy: Low side but improving | objectives: Study, play guitar, exercise"
+  },
+  {
+    "timestamp": "2025-11-24T17:01:26.261056",
+    "mood": "Very good",
+    "energy": "High",
+    "objectives": [
+      "Study",
+      "do some coding",
+      "play the guitar"
+    ],
+    "self_care": "Exercise, play video games",
+    "agent_summary": "mood: Very good | energy: High | objectives: Study, do some coding, play the guitar"
+  }
+]
