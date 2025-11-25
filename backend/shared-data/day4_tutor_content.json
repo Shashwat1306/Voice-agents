@@ -1,0 +1,28 @@
+[
+  {
+    "id": "variables",
+    "title": "Variables",
+    "summary": "Variables store values so you can reuse them later. They give a name to a piece of data so you can refer to it in your program.",
+    "sample_question": "What is a variable and why is it useful?",
+    "keywords": ["store","value","name","reuse","variable"]
+  },
+  {
+    "id": "loops",
+    "title": "Loops",
+    "summary": "Loops let you repeat an action multiple times, which is useful for processing collections of data or repeating a task until a condition is met.",
+    "sample_question": "Explain the difference between a for loop and a while loop.",
+    "keywords": ["repeat","for","while","condition","iteration","loop"]
+  },
+  {
+    "id": "functions",
+    "title": "Functions",
+    "summary": "Functions are reusable blocks of code that perform a specific task. They help you organize your code by breaking it into smaller, manageable pieces. A function takes inputs (called parameters), does something with them, and can return an output. For example, you might create a function called 'calculate_area' that takes length and width as inputs and returns the area. Functions make your code cleaner, easier to test, and prevent you from repeating the same code multiple times.",
+    "sample_question": "What is a function and what are the benefits of using functions in your code?"
+  },
+  {
+    "id": "conditionals",
+    "title": "Conditionals",
+    "summary": "Conditionals are decision-making structures in programming that let your code choose different paths based on whether conditions are true or false. The most common conditional is the 'if-else' statement. For example, 'if it's raining, bring an umbrella, else wear sunglasses'. Conditionals allow your programs to be flexible and respond differently to different situations, making them much more powerful than code that just runs the same way every time.",
+    "sample_question": "How do conditional statements work and why are they important for making programs dynamic?"
+  }
+]

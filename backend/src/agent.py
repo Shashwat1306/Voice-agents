@@ -1,9 +1,7 @@
 import logging
 import json
-import os
-import tempfile
 from pathlib import Path
-from datetime import datetime
+from typing import Annotated
 
 from dotenv import load_dotenv
 from livekit.agents import (
@@ -27,123 +25,200 @@ logger = logging.getLogger("agent")
 
 load_dotenv(".env.local")
 
+# Load tutor content
+def load_tutor_content():
+    """Load the tutor content from JSON file"""
+    content_path = Path("shared-data/day4_tutor_content.json")
+    with open(content_path, "r") as f:
+        return json.load(f)
 
-class Assistant(Agent):
+TUTOR_CONTENT = load_tutor_content()
+
+
+class RouterAgent(Agent):
+    """Initial agent that greets user and routes to the appropriate learning mode"""
+    
     def __init__(self) -> None:
-        # Load previous check-ins (if any) to include a short memory reference in the instructions
-        last_entry = self._load_last_entry()
-
-        memory_hint = ""
-        if last_entry:
-            # keep this short and factual to avoid leakage of sensitive details
-            last_dt = last_entry.get("timestamp")
-            last_mood = last_entry.get("mood")
-            last_energy = last_entry.get("energy")
-            memory_hint = (
-                f"Last check-in was on {last_dt}. They reported mood: '{last_mood}' and energy: '{last_energy}'. "
-                "When appropriate, briefly reference this to compare today to last time."
-            )
-
         super().__init__(
-            instructions=(
-                "You are a calm, supportive daily health & wellness voice companion. The user interacts with you by voice. "
-                "You are NOT a clinician and must not offer medical diagnoses or medical advice. Your role is supportive: help the user reflect, set small daily intentions, and offer simple, practical, non-medical suggestions. "
-                + memory_hint + "\n\n"
-                "Primary check-in flow (keep it short and conversational):\n"
-                "1) Greet briefly and ask about mood: 'How are you feeling today?' (allow open text or a simple scale).\n"
-                "2) Ask about energy: 'What's your energy like today?'\n"
-                "3) Ask about stressors: 'Anything stressing you out right now?' (optional).\n"
-                "4) Ask for 1–3 objectives: 'What are 1–3 things you'd like to get done today?'\n"
-                "5) Ask about self-care: 'Is there anything you want to do for yourself (rest, exercise, hobbies)?'\n"
-                "6) Offer one or two short, actionable, non-medical suggestions tailored to their answers (e.g., break a large task into a smaller step, take a 5-minute walk, try a breathing exercise, schedule a short break). Keep suggestions realistic and brief.\n"
-                "7) Close by repeating back a short recap: today's mood summary, the main 1–3 objectives, and ask 'Does this sound right?'.\n\n"
-                "When the check-in finishes, call the tool 'save_checkin' to persist a brief structured summary of the session. The saved entry should include date/time, mood, energy, objectives, optional self-care, and a short agent-generated summary sentence.\n"
-                "Keep responses concise and grounded; avoid long multi-paragraph replies. Use friendly, empathetic language and respect user privacy."
-            )
+            instructions="""You are a friendly tutor assistant that helps students learn programming concepts through active recall.
+
+Your role is to:
+1. Greet the student warmly
+2. Explain that you have three learning modes available:
+   - LEARN mode: I'll explain concepts to you
+   - QUIZ mode: I'll ask you questions to test your knowledge
+   - TEACH-BACK mode: You explain concepts back to me and I'll give feedback
+
+3. Ask which mode they'd like to start with
+
+Available topics: variables, loops, functions, and conditionals.
+
+Once they choose a mode, use the appropriate handoff tool to transfer them to that agent.
+
+Keep your greeting brief and conversational.""",
         )
 
     @function_tool
-    async def save_checkin(self, context: RunContext, mood: str, energy: str, objectives: str, self_care: str = ""):
-        """Persist a wellness check-in to a single JSON file.
+    async def transfer_to_learn_mode(self, context: RunContext):
+        """Transfer the student to Learn mode where concepts are explained"""
+        logger.info("Transferring to Learn mode")
+        return LearnAgent(), "Transferring you to Learn mode..."
 
-        Args:
-            mood: Short text or scale describing mood.
-            energy: Short text or scale describing energy.
-            objectives: User-stated objectives (1-3 items, comma- or newline-separated).
-            self_care: Optional self-care intention.
-        Returns:
-            A confirmation string for the user.
-        """
+    @function_tool
+    async def transfer_to_quiz_mode(self, context: RunContext):
+        """Transfer the student to Quiz mode where they answer questions"""
+        logger.info("Transferring to Quiz mode")
+        return QuizAgent(), "Transferring you to Quiz mode..."
 
-        logger.info("Saving wellness check-in")
+    @function_tool
+    async def transfer_to_teach_back_mode(self, context: RunContext):
+        """Transfer the student to Teach-Back mode where they explain concepts"""
+        logger.info("Transferring to Teach-Back mode")
+        return TeachBackAgent(), "Transferring you to Teach-Back mode..."
 
-        # normalize objectives into a list
-        objectives_list = [o.strip() for o in objectives.replace("\r", "\n").split("\n") if o.strip()]
-        if len(objectives_list) == 1 and "," in objectives_list[0]:
-            objectives_list = [o.strip() for o in objectives_list[0].split(",") if o.strip()]
 
-        # Agent-generated short summary
-        summary_parts = []
-        if mood:
-            summary_parts.append(f"mood: {mood}")
-        if energy:
-            summary_parts.append(f"energy: {energy}")
-        if objectives_list:
-            summary_parts.append(f"objectives: {', '.join(objectives_list[:3])}")
+class LearnAgent(Agent):
+    """Agent that explains concepts to the student (Matthew voice)"""
+    
+    def __init__(self) -> None:
+        # Create content reference for instructions
+        concepts_list = "\n".join([f"- {c['title']}: {c['summary']}" for c in TUTOR_CONTENT])
+        
+        super().__init__(
+            instructions=f"""You are Matthew, a patient and clear teacher in LEARN mode. Your job is to explain programming concepts clearly.
 
-        agent_summary = " | ".join(summary_parts)
+Available concepts:
+{concepts_list}
 
-        entry = {
-            "timestamp": datetime.now().isoformat(),
-            "mood": mood,
-            "energy": energy,
-            "objectives": objectives_list,
-            "self_care": self_care,
-            "agent_summary": agent_summary,
-        }
+Your approach:
+1. When the student arrives, welcome them to Learn mode
+2. Ask which concept they'd like to learn about (variables, loops, functions, or conditionals)
+3. Explain the concept clearly using the summary provided
+4. Use simple examples and analogies
+5. Check if they have questions
+6. Offer to explain another concept or switch modes
 
-        # write to a single JSON file in the backend directory
-        backend_dir = Path(__file__).resolve().parents[1]
-        json_path = backend_dir / "wellness_log.json"
+If the student wants to switch modes:
+- Use transfer_to_quiz_mode to switch to Quiz mode
+- Use transfer_to_teach_back_mode to switch to Teach-Back mode
 
-        # Load existing entries
-        if json_path.exists():
-            try:
-                with open(json_path, "r", encoding="utf-8") as f:
-                    existing = json.load(f)
-                    if not isinstance(existing, list):
-                        existing = []
-            except Exception:
-                existing = []
-        else:
-            existing = []
+Keep explanations conversational and easy to understand. Break complex ideas into simple parts.""",
+            tts=murf.TTS(
+                voice="en-US-matthew",
+                style="Conversation",
+                tokenizer=tokenize.basic.SentenceTokenizer(min_sentence_len=2),
+                text_pacing=True
+            ),
+        )
 
-        existing.append(entry)
+    @function_tool
+    async def transfer_to_quiz_mode(self, context: RunContext):
+        """Transfer to Quiz mode"""
+        logger.info("Transferring from Learn to Quiz mode")
+        return QuizAgent(), "Switching to Quiz mode..."
 
-        # atomic write
-        with tempfile.NamedTemporaryFile("w", delete=False, dir=str(backend_dir), encoding="utf-8") as tmp:
-            json.dump(existing, tmp, indent=2, ensure_ascii=False)
-            tmp_name = tmp.name
+    @function_tool
+    async def transfer_to_teach_back_mode(self, context: RunContext):
+        """Transfer to Teach-Back mode"""
+        logger.info("Transferring from Learn to Teach-Back mode")
+        return TeachBackAgent(), "Switching to Teach-Back mode..."
 
-        os.replace(tmp_name, str(json_path))
 
-        logger.info(f"Check-in added to {json_path}")
+class QuizAgent(Agent):
+    """Agent that quizzes the student (Alicia voice)"""
+    
+    def __init__(self) -> None:
+        # Create questions reference
+        questions_list = "\n".join([f"- {c['title']}: {c['sample_question']}" for c in TUTOR_CONTENT])
+        
+        super().__init__(
+            instructions=f"""You are Alicia, an encouraging quiz master in QUIZ mode. Your job is to test the student's knowledge.
 
-        return "Thanks — I've saved this check-in. I'll remember it for next time."
+Available quiz topics:
+{questions_list}
 
-    def _load_last_entry(self):
-        try:
-            backend_dir = Path(__file__).resolve().parents[1]
-            json_path = backend_dir / "wellness_log.json"
-            if not json_path.exists():
-                return None
-            with open(json_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                if isinstance(data, list) and data:
-                    return data[-1]
-        except Exception:
-            return None
-        return None
+Your approach:
+1. When the student arrives, welcome them to Quiz mode
+2. Ask which concept they'd like to be quizzed on
+3. Ask the sample question for that concept
+4. Listen to their answer
+5. Provide feedback: point out what they got right and gently correct any mistakes
+6. Offer to quiz them on another concept or switch modes
+
+If the student wants to switch modes:
+- Use transfer_to_learn_mode to switch to Learn mode
+- Use transfer_to_teach_back_mode to switch to Teach-Back mode
+
+Be encouraging and supportive. Celebrate correct answers and help them understand mistakes.""",
+            tts=murf.TTS(
+                voice="en-US-alicia",
+                style="Conversation",
+                tokenizer=tokenize.basic.SentenceTokenizer(min_sentence_len=2),
+                text_pacing=True
+            ),
+        )
+
+    @function_tool
+    async def transfer_to_learn_mode(self, context: RunContext):
+        """Transfer to Learn mode"""
+        logger.info("Transferring from Quiz to Learn mode")
+        return LearnAgent(), "Switching to Learn mode..."
+
+    @function_tool
+    async def transfer_to_teach_back_mode(self, context: RunContext):
+        """Transfer to Teach-Back mode"""
+        logger.info("Transferring from Quiz to Teach-Back mode")
+        return TeachBackAgent(), "Switching to Teach-Back mode..."
+
+
+class TeachBackAgent(Agent):
+    """Agent that asks student to explain concepts back (Ken voice)"""
+    
+    def __init__(self) -> None:
+        concepts_list = "\n".join([f"- {c['title']}" for c in TUTOR_CONTENT])
+        
+        super().__init__(
+            instructions=f"""You are Ken, a thoughtful evaluator in TEACH-BACK mode. The best way to learn is to teach!
+
+Available concepts:
+{concepts_list}
+
+Your approach:
+1. When the student arrives, welcome them to Teach-Back mode
+2. Explain that they'll teach YOU a concept - this is how they'll truly master it
+3. Ask which concept they'd like to explain (variables, loops, functions, or conditionals)
+4. Listen carefully to their explanation
+5. Provide qualitative feedback:
+   - What did they explain well?
+   - What key points did they miss?
+   - How could their explanation be clearer?
+6. Give a rating (Excellent/Good/Needs Work)
+7. Offer to hear another concept or switch modes
+
+If the student wants to switch modes:
+- Use transfer_to_learn_mode to switch to Learn mode
+- Use transfer_to_quiz_mode to switch to Quiz mode
+
+Be constructive and specific in your feedback. Help them become better teachers (and learners).""",
+            tts=murf.TTS(
+                voice="en-US-ken",
+                style="Conversation",
+                tokenizer=tokenize.basic.SentenceTokenizer(min_sentence_len=2),
+                text_pacing=True
+            ),
+        )
+
+    @function_tool
+    async def transfer_to_learn_mode(self, context: RunContext):
+        """Transfer to Learn mode"""
+        logger.info("Transferring from Teach-Back to Learn mode")
+        return LearnAgent(), "Switching to Learn mode..."
+
+    @function_tool
+    async def transfer_to_quiz_mode(self, context: RunContext):
+        """Transfer to Quiz mode"""
+        logger.info("Transferring from Teach-Back to Quiz mode")
+        return QuizAgent(), "Switching to Quiz mode..."
 
 
 def prewarm(proc: JobProcess):
@@ -219,7 +294,7 @@ async def entrypoint(ctx: JobContext):
 
     # Start the session, which initializes the voice pipeline and warms up the models
     await session.start(
-        agent=Assistant(),
+        agent=RouterAgent(),
         room=ctx.room,
         room_input_options=RoomInputOptions(
             # For telephony applications, use `BVCTelephony` for best results
