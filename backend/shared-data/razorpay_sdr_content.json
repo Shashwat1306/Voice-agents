@@ -1,0 +1,32 @@
+{
+  "company": "Razorpay",
+  "source": "https://razorpay.com (public pages)",
+  "overview": "Razorpay is an Indian fintech company that provides a payments suite allowing businesses to accept, process and disburse payments. Its product suite includes Payment Gateway, Payment Links, Payment Pages, Subscriptions, POS, RazorpayX (business banking and payroll), Payouts, and more. Razorpay targets e-commerce, SaaS, marketplaces, freelancers and enterprises with developer-friendly APIs and onboarding.",
+  "pricing_summary": "Razorpay lists a starting transaction fee of 2% on payments (applicable on all transactions) with 18% GST applicable separately. Some banking and banking-suite features (RazorpayX) and value-added products may have separate custom pricing; enterprise customers are advised to contact sales for custom plans.",
+  "faqs": [
+    {
+      "question": "What does your product do?",
+      "answer": "Razorpay provides a unified payments platform to accept, process, and disburse payments across multiple modes (cards, netbanking, UPI, wallets), plus business banking (RazorpayX), payouts, subscriptions, invoicing, and tools for marketplaces and platforms."
+    },
+    {
+      "question": "Do you have a free tier?",
+      "answer": "Razorpay's core payment gateway typically charges per-transaction fees (listed starting at 2% on payments). Some developer tools, test sandboxes, and limited features may be available without charge, but there is no widely-advertised unlimited free production tier for payments — pricing depends on volume and product mix. Contact sales for details."
+    },
+    {
+      "question": "Who is this for?",
+      "answer": "Businesses of all sizes: startups, e-commerce stores, SaaS companies, marketplaces, freelancers, and enterprises who need payment acceptance, payouts, subscriptions, business banking, or payroll automation. Razorpay offers solutions tailored to developers and platform owners."
+    },
+    {
+      "question": "How do I integrate the payment gateway?",
+      "answer": "Razorpay offers developer-friendly SDKs and APIs and provides documentation at https://razorpay.com/docs to help integrate checkout, server-side APIs, and webhooks."
+    },
+    {
+      "question": "What payment methods are supported?",
+      "answer": "Cards (credit/debit), UPI, netbanking, popular wallets, and international payment acceptance for supported currencies."
+    },
+    {
+      "question": "How do I get started?",
+      "answer": "Sign up on Razorpay and follow the onboarding flow, or try the developer docs and sandbox. For enterprise features and RazorpayX banking products, contact sales for guided onboarding."
+    }
+  ]
+}

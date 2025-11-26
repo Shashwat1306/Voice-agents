@@ -20,6 +20,7 @@ from livekit.agents import (
 )
 from livekit.plugins import murf, silero, google, deepgram, noise_cancellation
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
+from typing import Dict, Optional
 
 logger = logging.getLogger("agent")
 
@@ -33,6 +34,17 @@ def load_tutor_content():
         return json.load(f)
 
 TUTOR_CONTENT = load_tutor_content()
+
+
+# Load Razorpay SDR content for the Sales Development Representative agent
+def load_razorpay_content():
+    content_path = Path("shared-data/razorpay_sdr_content.json")
+    if not content_path.exists():
+        return {}
+    with open(content_path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+RAZORPAY_CONTENT = load_razorpay_content()
 
 
 class RouterAgent(Agent):
@@ -221,6 +233,66 @@ Be constructive and specific in your feedback. Help them become better teachers 
         return QuizAgent(), "Switching to Quiz mode..."
 
 
+class SDRAgent(Agent):
+    """Sales Development Representative agent for Razorpay demo."""
+
+    def __init__(self) -> None:
+        # basic lead fields to collect
+        self.lead_fields = [
+            "name",
+            "company",
+            "email",
+            "role",
+            "use_case",
+            "team_size",
+            "timeline"
+        ]
+
+        faqs = "\n".join([f"- {f['question']}: {f['answer']}" for f in RAZORPAY_CONTENT.get("faqs", [])])
+
+        super().__init__(
+            instructions=f"""You are a friendly Sales Development Representative for {RAZORPAY_CONTENT.get('company','Razorpay')}.\n
+    Behavior and goals:\n
+    1. Greet the visitor warmly.\n2. Ask what brought them here and what they're working on.\n+3. Keep the conversation focused on understanding the visitor's needs.\n4. Ask qualifying questions naturally to collect the following lead fields: name, company, email, role, use_case, team_size, timeline.\n+   - Ask for missing fields as the conversation flows; be polite and brief.\n5. When the user asks about the product, pricing, or other company details, consult the provided FAQ content (do not invent facts). Use `get_faq` tool for precise answers.\n6. Detect when the user is done (e.g., "That's all", "I'm done", "Thanks") and then:\n+   - Give a short verbal summary of the lead (who they are, what they want, rough timeline).\n+   - Save the collected lead data by calling the `save_lead` tool with a JSON object.\n+   - Thank them and offer next steps (e.g., "I'll connect you with our sales team").\n\n+Available FAQ entries:\n{faqs}\n\n+When collecting fields, prefer obtaining email and role early. Keep questions short and natural.""",
+        )
+
+    @function_tool
+    async def get_faq(self, context: RunContext, query: str) -> Dict[str, Optional[str]]:
+        """Simple keyword search over loaded FAQ entries. Returns the best matching FAQ or an empty result."""
+        q = (query or "").lower()
+        best = None
+        best_score = 0
+        for f in RAZORPAY_CONTENT.get("faqs", []):
+            text = (f.get("question","") + " " + f.get("answer","") ).lower()
+            # simple score: count of query words present
+            score = sum(1 for w in q.split() if w and w in text)
+            if score > best_score:
+                best_score = score
+                best = f
+        if best is None and RAZORPAY_CONTENT:
+            # fallback: return company overview
+            return {"question": "overview", "answer": RAZORPAY_CONTENT.get("overview")}
+        return best or {}
+
+    @function_tool
+    async def save_lead(self, context: RunContext, lead: Dict) -> str:
+        """Append the lead dict to `KMS/logs/leads.json` and return the path."""
+        out_path = Path("KMS/logs/leads.json")
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        leads = []
+        if out_path.exists():
+            try:
+                with open(out_path, "r", encoding="utf-8") as f:
+                    leads = json.load(f)
+            except Exception:
+                leads = []
+        leads.append(lead)
+        with open(out_path, "w", encoding="utf-8") as f:
+            json.dump(leads, f, indent=2)
+        logger.info(f"Saved lead to {out_path} -> {lead}")
+        return str(out_path)
+
+
 def prewarm(proc: JobProcess):
     proc.userdata["vad"] = silero.VAD.load()
 
@@ -294,7 +366,7 @@ async def entrypoint(ctx: JobContext):
 
     # Start the session, which initializes the voice pipeline and warms up the models
     await session.start(
-        agent=RouterAgent(),
+        agent=SDRAgent(),
         room=ctx.room,
         room_input_options=RoomInputOptions(
             # For telephony applications, use `BVCTelephony` for best results
