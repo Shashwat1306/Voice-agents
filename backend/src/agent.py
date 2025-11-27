@@ -2,6 +2,7 @@ import logging
 import json
 from pathlib import Path
 from typing import Annotated
+from datetime import datetime
 
 from dotenv import load_dotenv
 from livekit.agents import (
@@ -20,277 +21,249 @@ from livekit.agents import (
 )
 from livekit.plugins import murf, silero, google, deepgram, noise_cancellation
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
-from typing import Dict, Optional
 
 logger = logging.getLogger("agent")
 
 load_dotenv(".env.local")
 
-# Load tutor content
-def load_tutor_content():
-    """Load the tutor content from JSON file"""
-    content_path = Path("shared-data/day4_tutor_content.json")
+# Load fraud cases database
+def load_fraud_database():
+    """Load the fraud cases database from JSON file"""
+    content_path = Path("shared-data/fraud_cases_database.json")
     with open(content_path, "r") as f:
         return json.load(f)
 
-TUTOR_CONTENT = load_tutor_content()
+def save_fraud_database(database):
+    """Save the updated fraud cases database to JSON file"""
+    content_path = Path("shared-data/fraud_cases_database.json")
+    with open(content_path, "w") as f:
+        json.dump(database, f, indent=2)
+
+FRAUD_DATABASE = load_fraud_database()
 
 
-# Load Razorpay SDR content for the Sales Development Representative agent
-def load_razorpay_content():
-    content_path = Path("shared-data/razorpay_sdr_content.json")
-    if not content_path.exists():
-        return {}
-    with open(content_path, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-RAZORPAY_CONTENT = load_razorpay_content()
-
-
-class RouterAgent(Agent):
-    """Initial agent that greets user and routes to the appropriate learning mode"""
+class FraudAlertAgent(Agent):
+    """Fraud detection voice agent for bank security department"""
     
     def __init__(self) -> None:
         super().__init__(
-            instructions="""You are a friendly tutor assistant that helps students learn programming concepts through active recall.
+            instructions="""You are a professional fraud detection representative from National-Bank India's Fraud Prevention Department.
 
-Your role is to:
-1. Greet the student warmly
-2. Explain that you have three learning modes available:
-   - LEARN mode: I'll explain concepts to you
-   - QUIZ mode: I'll ask you questions to test your knowledge
-   - TEACH-BACK mode: You explain concepts back to me and I'll give feedback
+YOUR ROLE AND MISSION:
+You are calling customers about suspicious transactions detected on their accounts. Your goal is to verify the transaction and protect the customer from potential fraud.
 
-3. Ask which mode they'd like to start with
+CALL FLOW:
+1. **Introduction**: 
+   - Greet the customer warmly
+   - Introduce yourself: "This is the Fraud Prevention Department from SecureBank India"
+   - Explain you're calling about a suspicious transaction on their account
+   - Keep a calm, reassuring, professional tone
 
-Available topics: variables, loops, functions, and conditionals.
+2. **Get Customer Name**:
+   - Ask: "May I have your full name please?"
+   - Use the get_fraud_case tool with their name to load their case
+   - If no case found, apologize and say there may have been an error
 
-Once they choose a mode, use the appropriate handoff tool to transfer them to that agent.
+3. **Identity Verification**:
+   - Once you have their case, ask them the security question from their profile
+   - DO NOT ask for card numbers, PINs, passwords, or any sensitive banking credentials
+   - Only use the security question stored in their case
+   - Use verify_security_answer tool to check their answer
+   - If they answer correctly, proceed with the call
+   - If they answer incorrectly after 2 attempts, politely end the call using mark_verification_failed
 
-Keep your greeting brief and conversational.""",
+4. **Read Transaction Details**:
+   - Once verified, you can use read_transaction_details tool OR read the details from the case directly
+   - Read out the suspicious transaction details clearly:
+     - Merchant name
+     - Amount
+     - Date and time
+     - Location
+     - Card ending in [last 4 digits]
+   - Example: "We detected a transaction of $1,247.50 at ABC Electronics Industry on alibaba.com from Shanghai, China on November 26th at 3:42 PM using your card ending in 4242."
+
+5. **Confirm Transaction**:
+   - Ask clearly: "Did you make or authorize this transaction?"
+   - Listen for their response (yes/no)
+   - If YES → Use mark_case_safe tool
+   - If NO → Use mark_case_fraudulent tool
+
+6. **Closing**:
+   - Thank them for their time
+   - Summarize the action taken
+   - Reassure them their account is secure
+   - End the call professionally
+
+IMPORTANT GUIDELINES:
+- Never ask for full card numbers, CVV, PIN, or passwords
+- Stay calm and professional even if the customer is worried
+- Be patient and empathetic
+- Speak clearly when reading transaction details
+- Confirm their answers before taking action
+- Use function tools to load cases and update status
+
+Remember: You're here to protect the customer from fraud while providing excellent service.""",
         )
-
-    @function_tool
-    async def transfer_to_learn_mode(self, context: RunContext):
-        """Transfer the student to Learn mode where concepts are explained"""
-        logger.info("Transferring to Learn mode")
-        return LearnAgent(), "Transferring you to Learn mode..."
-
-    @function_tool
-    async def transfer_to_quiz_mode(self, context: RunContext):
-        """Transfer the student to Quiz mode where they answer questions"""
-        logger.info("Transferring to Quiz mode")
-        return QuizAgent(), "Transferring you to Quiz mode..."
-
-    @function_tool
-    async def transfer_to_teach_back_mode(self, context: RunContext):
-        """Transfer the student to Teach-Back mode where they explain concepts"""
-        logger.info("Transferring to Teach-Back mode")
-        return TeachBackAgent(), "Transferring you to Teach-Back mode..."
-
-
-class LearnAgent(Agent):
-    """Agent that explains concepts to the student (Matthew voice)"""
-    
-    def __init__(self) -> None:
-        # Create content reference for instructions
-        concepts_list = "\n".join([f"- {c['title']}: {c['summary']}" for c in TUTOR_CONTENT])
         
-        super().__init__(
-            instructions=f"""You are Matthew, a patient and clear teacher in LEARN mode. Your job is to explain programming concepts clearly.
-
-Available concepts:
-{concepts_list}
-
-Your approach:
-1. When the student arrives, welcome them to Learn mode
-2. Ask which concept they'd like to learn about (variables, loops, functions, or conditionals)
-3. Explain the concept clearly using the summary provided
-4. Use simple examples and analogies
-5. Check if they have questions
-6. Offer to explain another concept or switch modes
-
-If the student wants to switch modes:
-- Use transfer_to_quiz_mode to switch to Quiz mode
-- Use transfer_to_teach_back_mode to switch to Teach-Back mode
-
-Keep explanations conversational and easy to understand. Break complex ideas into simple parts.""",
-            tts=murf.TTS(
-                voice="en-US-matthew",
-                style="Conversation",
-                tokenizer=tokenize.basic.SentenceTokenizer(min_sentence_len=2),
-                text_pacing=True
-            ),
-        )
+        # Initialize fraud case data
+        self.current_case = None
+        self.verification_attempts = 0
+        self.max_verification_attempts = 2
+        self.is_verified = False
 
     @function_tool
-    async def transfer_to_quiz_mode(self, context: RunContext):
-        """Transfer to Quiz mode"""
-        logger.info("Transferring from Learn to Quiz mode")
-        return QuizAgent(), "Switching to Quiz mode..."
-
-    @function_tool
-    async def transfer_to_teach_back_mode(self, context: RunContext):
-        """Transfer to Teach-Back mode"""
-        logger.info("Transferring from Learn to Teach-Back mode")
-        return TeachBackAgent(), "Switching to Teach-Back mode..."
-
-
-class QuizAgent(Agent):
-    """Agent that quizzes the student (Alicia voice)"""
-    
-    def __init__(self) -> None:
-        # Create questions reference
-        questions_list = "\n".join([f"- {c['title']}: {c['sample_question']}" for c in TUTOR_CONTENT])
+    async def get_fraud_case(
+        self, 
+        customer_name: Annotated[str, "The customer's full name to look up their fraud case"],
+        context: RunContext
+    ):
+        """Load the fraud case for a specific customer by their name"""
+        logger.info(f"Looking up fraud case for: {customer_name}")
         
-        super().__init__(
-            instructions=f"""You are Alicia, an encouraging quiz master in QUIZ mode. Your job is to test the student's knowledge.
-
-Available quiz topics:
-{questions_list}
-
-Your approach:
-1. When the student arrives, welcome them to Quiz mode
-2. Ask which concept they'd like to be quizzed on
-3. Ask the sample question for that concept
-4. Listen to their answer
-5. Provide feedback: point out what they got right and gently correct any mistakes
-6. Offer to quiz them on another concept or switch modes
-
-If the student wants to switch modes:
-- Use transfer_to_learn_mode to switch to Learn mode
-- Use transfer_to_teach_back_mode to switch to Teach-Back mode
-
-Be encouraging and supportive. Celebrate correct answers and help them understand mistakes.""",
-            tts=murf.TTS(
-                voice="en-US-alicia",
-                style="Conversation",
-                tokenizer=tokenize.basic.SentenceTokenizer(min_sentence_len=2),
-                text_pacing=True
-            ),
-        )
-
-    @function_tool
-    async def transfer_to_learn_mode(self, context: RunContext):
-        """Transfer to Learn mode"""
-        logger.info("Transferring from Quiz to Learn mode")
-        return LearnAgent(), "Switching to Learn mode..."
-
-    @function_tool
-    async def transfer_to_teach_back_mode(self, context: RunContext):
-        """Transfer to Teach-Back mode"""
-        logger.info("Transferring from Quiz to Teach-Back mode")
-        return TeachBackAgent(), "Switching to Teach-Back mode..."
-
-
-class TeachBackAgent(Agent):
-    """Agent that asks student to explain concepts back (Ken voice)"""
-    
-    def __init__(self) -> None:
-        concepts_list = "\n".join([f"- {c['title']}" for c in TUTOR_CONTENT])
+        # Search for the customer in the database
+        for case in FRAUD_DATABASE['fraud_cases']:
+            if case['userName'].lower() == customer_name.lower():
+                self.current_case = case
+                logger.info(f"Found case for {customer_name}: {case['transactionName']}")
+                return f"Case loaded for {customer_name}. Security identifier: {case['securityIdentifier']}. Now proceed with identity verification by asking their security question: '{case['securityQuestion']}'"
         
-        super().__init__(
-            instructions=f"""You are Ken, a thoughtful evaluator in TEACH-BACK mode. The best way to learn is to teach!
-
-Available concepts:
-{concepts_list}
-
-Your approach:
-1. When the student arrives, welcome them to Teach-Back mode
-2. Explain that they'll teach YOU a concept - this is how they'll truly master it
-3. Ask which concept they'd like to explain (variables, loops, functions, or conditionals)
-4. Listen carefully to their explanation
-5. Provide qualitative feedback:
-   - What did they explain well?
-   - What key points did they miss?
-   - How could their explanation be clearer?
-6. Give a rating (Excellent/Good/Needs Work)
-7. Offer to hear another concept or switch modes
-
-If the student wants to switch modes:
-- Use transfer_to_learn_mode to switch to Learn mode
-- Use transfer_to_quiz_mode to switch to Quiz mode
-
-Be constructive and specific in your feedback. Help them become better teachers (and learners).""",
-            tts=murf.TTS(
-                voice="en-US-ken",
-                style="Conversation",
-                tokenizer=tokenize.basic.SentenceTokenizer(min_sentence_len=2),
-                text_pacing=True
-            ),
-        )
+        logger.warning(f"No fraud case found for: {customer_name}")
+        return f"I apologize, but I cannot find a fraud case for {customer_name} in our system. There may have been an error. Please contact our fraud department directly."
 
     @function_tool
-    async def transfer_to_learn_mode(self, context: RunContext):
-        """Transfer to Learn mode"""
-        logger.info("Transferring from Teach-Back to Learn mode")
-        return LearnAgent(), "Switching to Learn mode..."
+    async def verify_security_answer(
+        self, 
+        customer_answer: Annotated[str, "The customer's answer to their security question"],
+        context: RunContext
+    ):
+        """Verify the customer's identity using their security answer"""
+        if not self.current_case:
+            return "Error: No case loaded. Please get the customer's name first."
+        
+        self.verification_attempts += 1
+        correct_answer = self.current_case['securityAnswer'].lower()
+        provided_answer = customer_answer.lower()
+        
+        logger.info(f"Verification attempt {self.verification_attempts}/{self.max_verification_attempts}")
+        
+        if provided_answer == correct_answer:
+            self.is_verified = True
+            logger.info(f"Verification successful for {self.current_case['userName']}")
+            return f"Thank you for verifying your identity. Now I need to inform you about the suspicious transaction we detected."
+        else:
+            if self.verification_attempts >= self.max_verification_attempts:
+                logger.warning(f"Verification failed after {self.verification_attempts} attempts")
+                return f"I'm sorry, but I cannot verify your identity. For your security, I cannot proceed with this call. Please visit your nearest branch or call our main customer service line. Goodbye."
+            else:
+                remaining = self.max_verification_attempts - self.verification_attempts
+                return f"I'm sorry, that answer doesn't match our records. You have {remaining} more attempt(s). Let me ask the security question again."
 
     @function_tool
-    async def transfer_to_quiz_mode(self, context: RunContext):
-        """Transfer to Quiz mode"""
-        logger.info("Transferring from Teach-Back to Quiz mode")
-        return QuizAgent(), "Switching to Quiz mode..."
-
-
-class SDRAgent(Agent):
-    """Sales Development Representative agent for Razorpay demo."""
-
-    def __init__(self) -> None:
-        # basic lead fields to collect
-        self.lead_fields = [
-            "name",
-            "company",
-            "email",
-            "role",
-            "use_case",
-            "team_size",
-            "timeline"
-        ]
-
-        faqs = "\n".join([f"- {f['question']}: {f['answer']}" for f in RAZORPAY_CONTENT.get("faqs", [])])
-
-        super().__init__(
-            instructions=f"""You are a friendly Sales Development Representative for {RAZORPAY_CONTENT.get('company','Razorpay')}.\n
-    Behavior and goals:\n
-    1. Greet the visitor warmly.\n2. Ask what brought them here and what they're working on.\n+3. Keep the conversation focused on understanding the visitor's needs.\n4. Ask qualifying questions naturally to collect the following lead fields: name, company, email, role, use_case, team_size, timeline.\n+   - Ask for missing fields as the conversation flows; be polite and brief.\n5. When the user asks about the product, pricing, or other company details, consult the provided FAQ content (do not invent facts). Use `get_faq` tool for precise answers.\n6. Detect when the user is done (e.g., "That's all", "I'm done", "Thanks") and then:\n+   - Give a short verbal summary of the lead (who they are, what they want, rough timeline).\n+   - Save the collected lead data by calling the `save_lead` tool with a JSON object.\n+   - Thank them and offer next steps (e.g., "I'll connect you with our sales team").\n\n+Available FAQ entries:\n{faqs}\n\n+When collecting fields, prefer obtaining email and role early. Keep questions short and natural.""",
-        )
+    async def mark_verification_failed(self, context: RunContext):
+        """Mark the case as verification failed and end the call"""
+        if not self.current_case:
+            return "Error: No case loaded."
+        
+        # Update the database
+        for case in FRAUD_DATABASE['fraud_cases']:
+            if case['securityIdentifier'] == self.current_case['securityIdentifier']:
+                case['status'] = 'verification_failed'
+                case['outcome_note'] = 'Customer failed identity verification. Call terminated for security.'
+                break
+        
+        save_fraud_database(FRAUD_DATABASE)
+        logger.info(f"Case marked as verification_failed for {self.current_case['userName']}")
+        
+        return "Case updated. Thank you for calling. Goodbye."
 
     @function_tool
-    async def get_faq(self, context: RunContext, query: str) -> Dict[str, Optional[str]]:
-        """Simple keyword search over loaded FAQ entries. Returns the best matching FAQ or an empty result."""
-        q = (query or "").lower()
-        best = None
-        best_score = 0
-        for f in RAZORPAY_CONTENT.get("faqs", []):
-            text = (f.get("question","") + " " + f.get("answer","") ).lower()
-            # simple score: count of query words present
-            score = sum(1 for w in q.split() if w and w in text)
-            if score > best_score:
-                best_score = score
-                best = f
-        if best is None and RAZORPAY_CONTENT:
-            # fallback: return company overview
-            return {"question": "overview", "answer": RAZORPAY_CONTENT.get("overview")}
-        return best or {}
+    async def mark_case_safe(self, context: RunContext):
+        """Mark the fraud case as safe - customer confirmed they made the transaction"""
+        if not self.current_case:
+            return "Error: No case loaded."
+        
+        if not self.is_verified:
+            return "Error: Customer must be verified first before updating case status."
+        
+        # Update the database
+        for case in FRAUD_DATABASE['fraud_cases']:
+            if case['securityIdentifier'] == self.current_case['securityIdentifier']:
+                case['status'] = 'confirmed_safe'
+                case['case'] = 'safe'
+                case['outcome_note'] = f'Customer {case["userName"]} confirmed they authorized this transaction. No fraud detected.'
+                break
+        
+        save_fraud_database(FRAUD_DATABASE)
+        logger.info(f"Case marked as SAFE for {self.current_case['userName']}")
+        
+        transaction_details = f"{self.current_case['transactionAmount']} at {self.current_case['transactionName']}"
+        
+        return f"""Perfect! I've updated our records to show that the transaction of {transaction_details} was authorized by you. 
+
+Your account remains secure and no further action is needed. Thank you for confirming this with us - we take your security very seriously.
+
+Is there anything else I can help you with today?"""
 
     @function_tool
-    async def save_lead(self, context: RunContext, lead: Dict) -> str:
-        """Append the lead dict to `KMS/logs/leads.json` and return the path."""
-        out_path = Path("KMS/logs/leads.json")
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        leads = []
-        if out_path.exists():
-            try:
-                with open(out_path, "r", encoding="utf-8") as f:
-                    leads = json.load(f)
-            except Exception:
-                leads = []
-        leads.append(lead)
-        with open(out_path, "w", encoding="utf-8") as f:
-            json.dump(leads, f, indent=2)
-        logger.info(f"Saved lead to {out_path} -> {lead}")
-        return str(out_path)
+    async def mark_case_fraudulent(self, context: RunContext):
+        """Mark the fraud case as fraudulent - customer did not authorize the transaction"""
+        if not self.current_case:
+            return "Error: No case loaded."
+        
+        if not self.is_verified:
+            return "Error: Customer must be verified first before updating case status."
+        
+        # Update the database
+        for case in FRAUD_DATABASE['fraud_cases']:
+            if case['securityIdentifier'] == self.current_case['securityIdentifier']:
+                case['status'] = 'confirmed_fraud'
+                case['case'] = 'fraudulent'
+                case['outcome_note'] = f'Customer {case["userName"]} denied making this transaction. Fraud confirmed. Card blocked and dispute initiated.'
+                break
+        
+        save_fraud_database(FRAUD_DATABASE)
+        logger.info(f"Case marked as FRAUDULENT for {self.current_case['userName']}")
+        
+        card_ending = self.current_case['cardEnding']
+        transaction_details = f"{self.current_case['transactionAmount']} at {self.current_case['transactionName']}"
+        
+        return f"""I understand. Thank you for letting us know. For your protection, I have immediately taken the following actions:
+
+1. Blocked your card ending in {card_ending}
+2. Initiated a fraud dispute for the {transaction_details} transaction
+3. Flagged this transaction for investigation
+4. Prevented any further charges on this card
+
+You will receive a new card at your registered address within 5-7 business days. We will also reverse the fraudulent charge within 7-10 business days.
+
+Please monitor your account for any other suspicious activity and contact us immediately if you notice anything unusual. 
+
+Your account security is our top priority. Is there anything else you need help with?"""
+
+    @function_tool
+    async def read_transaction_details(self, context: RunContext):
+        """Read out the suspicious transaction details to the customer"""
+        if not self.current_case:
+            return "Error: No case loaded. Please get the customer's name first."
+        
+        if not self.is_verified:
+            return "Error: Customer must be verified first before reading transaction details."
+        
+        case = self.current_case
+        details = f"""We detected a suspicious transaction on your account. Here are the details:
+
+- Amount: {case['transactionAmount']}
+- Merchant: {case['transactionName']}
+- Website: {case['transactionSource']}
+- Location: {case['transactionLocation']}
+- Date and Time: {case['transactionTime']}
+- Card used: ending in {case['cardEnding']}
+- Category: {case['transactionCategory']}
+
+Did you make or authorize this transaction?"""
+        
+        logger.info(f"Read transaction details to {case['userName']}")
+        return details
 
 
 def prewarm(proc: JobProcess):
@@ -366,7 +339,7 @@ async def entrypoint(ctx: JobContext):
 
     # Start the session, which initializes the voice pipeline and warms up the models
     await session.start(
-        agent=SDRAgent(),
+        agent=FraudAlertAgent(),
         room=ctx.room,
         room_input_options=RoomInputOptions(
             # For telephony applications, use `BVCTelephony` for best results
