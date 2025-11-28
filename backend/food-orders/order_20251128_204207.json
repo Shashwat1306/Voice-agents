@@ -1,0 +1,44 @@
+{
+  "order_id": "ORDER_20251128_204207",
+  "timestamp": "2025-11-28T20:42:07.392280",
+  "customer_name": "Guest",
+  "items": [
+    {
+      "id": "GR007",
+      "name": "Pasta",
+      "price": 85,
+      "quantity": 1,
+      "subtotal": 85.0
+    },
+    {
+      "id": "GR008",
+      "name": "Pasta Sauce",
+      "price": 120,
+      "quantity": 1,
+      "subtotal": 120.0
+    },
+    {
+      "id": "GR004",
+      "name": "Milk",
+      "price": 60,
+      "quantity": 1,
+      "subtotal": 60.0
+    },
+    {
+      "id": "GR003",
+      "name": "Eggs",
+      "price": 90,
+      "quantity": 6,
+      "subtotal": 540.0
+    },
+    {
+      "id": "GR009",
+      "name": "Rice",
+      "price": 75,
+      "quantity": 1,
+      "subtotal": 75.0
+    }
+  ],
+  "total": 880.0,
+  "status": "placed"
+}

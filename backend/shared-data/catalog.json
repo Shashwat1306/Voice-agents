@@ -1,0 +1,256 @@
+{
+  "store_name": "FoodMart",
+  "categories": {
+    "groceries": [
+      {
+        "id": "GR001",
+        "name": "Whole Wheat Bread",
+        "category": "groceries",
+        "price": 45,
+        "unit": "loaf",
+        "brand": "Harvest Gold",
+        "tags": ["vegetarian", "wheat"]
+      },
+      {
+        "id": "GR002",
+        "name": "White Bread",
+        "category": "groceries",
+        "price": 40,
+        "unit": "loaf",
+        "brand": "Britannia",
+        "tags": ["vegetarian"]
+      },
+      {
+        "id": "GR003",
+        "name": "Eggs",
+        "category": "groceries",
+        "price": 90,
+        "unit": "dozen",
+        "brand": "Farm Fresh",
+        "tags": ["protein"]
+      },
+      {
+        "id": "GR004",
+        "name": "Milk",
+        "category": "groceries",
+        "price": 60,
+        "unit": "1 liter",
+        "brand": "Amul",
+        "tags": ["dairy", "vegetarian"]
+      },
+      {
+        "id": "GR005",
+        "name": "Butter",
+        "category": "groceries",
+        "price": 55,
+        "unit": "100g",
+        "brand": "Amul",
+        "tags": ["dairy", "vegetarian"]
+      },
+      {
+        "id": "GR006",
+        "name": "Peanut Butter",
+        "category": "groceries",
+        "price": 180,
+        "unit": "400g jar",
+        "brand": "Sundrop",
+        "tags": ["vegan", "protein"]
+      },
+      {
+        "id": "GR007",
+        "name": "Pasta",
+        "category": "groceries",
+        "price": 85,
+        "unit": "500g pack",
+        "brand": "Del Monte",
+        "tags": ["vegetarian", "wheat"]
+      },
+      {
+        "id": "GR008",
+        "name": "Pasta Sauce",
+        "category": "groceries",
+        "price": 120,
+        "unit": "400g jar",
+        "brand": "Kissan",
+        "tags": ["vegetarian"]
+      },
+      {
+        "id": "GR009",
+        "name": "Rice",
+        "category": "groceries",
+        "price": 75,
+        "unit": "1kg",
+        "brand": "India Gate",
+        "tags": ["vegan", "gluten-free"]
+      },
+      {
+        "id": "GR010",
+        "name": "Cooking Oil",
+        "category": "groceries",
+        "price": 180,
+        "unit": "1 liter",
+        "brand": "Fortune",
+        "tags": ["vegan"]
+      },
+      {
+        "id": "GR011",
+        "name": "Onions",
+        "category": "groceries",
+        "price": 40,
+        "unit": "1kg",
+        "tags": ["vegan", "vegetable"]
+      },
+      {
+        "id": "GR012",
+        "name": "Tomatoes",
+        "category": "groceries",
+        "price": 50,
+        "unit": "1kg",
+        "tags": ["vegan", "vegetable"]
+      },
+      {
+        "id": "GR013",
+        "name": "Potatoes",
+        "category": "groceries",
+        "price": 30,
+        "unit": "1kg",
+        "tags": ["vegan", "vegetable"]
+      },
+      {
+        "id": "GR014",
+        "name": "Cheese Slices",
+        "category": "groceries",
+        "price": 95,
+        "unit": "200g pack",
+        "brand": "Amul",
+        "tags": ["dairy", "vegetarian"]
+      }
+    ],
+    "snacks": [
+      {
+        "id": "SN001",
+        "name": "Potato Chips",
+        "category": "snacks",
+        "price": 20,
+        "unit": "pack",
+        "brand": "Lays",
+        "tags": ["vegetarian", "crispy"]
+      },
+      {
+        "id": "SN002",
+        "name": "Chocolate Bar",
+        "category": "snacks",
+        "price": 45,
+        "unit": "bar",
+        "brand": "Cadbury Dairy Milk",
+        "tags": ["vegetarian", "sweet"]
+      },
+      {
+        "id": "SN003",
+        "name": "Cookies",
+        "category": "snacks",
+        "price": 30,
+        "unit": "pack",
+        "brand": "Parle-G",
+        "tags": ["vegetarian", "sweet"]
+      },
+      {
+        "id": "SN004",
+        "name": "Namkeen Mix",
+        "category": "snacks",
+        "price": 40,
+        "unit": "200g pack",
+        "brand": "Haldiram's",
+        "tags": ["vegetarian", "savory"]
+      },
+      {
+        "id": "SN005",
+        "name": "Instant Noodles",
+        "category": "snacks",
+        "price": 15,
+        "unit": "pack",
+        "brand": "Maggi",
+        "tags": ["vegetarian"]
+      }
+    ],
+    "prepared_food": [
+      {
+        "id": "PF001",
+        "name": "Margherita Pizza",
+        "category": "prepared_food",
+        "price": 250,
+        "unit": "medium",
+        "tags": ["vegetarian", "ready-to-eat"]
+      },
+      {
+        "id": "PF002",
+        "name": "Veggie Pizza",
+        "category": "prepared_food",
+        "price": 280,
+        "unit": "medium",
+        "tags": ["vegetarian", "ready-to-eat"]
+      },
+      {
+        "id": "PF003",
+        "name": "Veg Sandwich",
+        "category": "prepared_food",
+        "price": 80,
+        "unit": "sandwich",
+        "tags": ["vegetarian", "ready-to-eat"]
+      },
+      {
+        "id": "PF004",
+        "name": "Chicken Sandwich",
+        "category": "prepared_food",
+        "price": 120,
+        "unit": "sandwich",
+        "tags": ["non-vegetarian", "ready-to-eat"]
+      },
+      {
+        "id": "PF005",
+        "name": "Biryani",
+        "category": "prepared_food",
+        "price": 180,
+        "unit": "serving",
+        "tags": ["non-vegetarian", "ready-to-eat", "spicy"]
+      },
+      {
+        "id": "PF006",
+        "name": "Dal Makhani",
+        "category": "prepared_food",
+        "price": 140,
+        "unit": "serving",
+        "tags": ["vegetarian", "ready-to-eat"]
+      }
+    ],
+    "beverages": [
+      {
+        "id": "BV001",
+        "name": "Orange Juice",
+        "category": "beverages",
+        "price": 50,
+        "unit": "1 liter",
+        "brand": "Real",
+        "tags": ["vegan", "fresh"]
+      },
+      {
+        "id": "BV002",
+        "name": "Cola",
+        "category": "beverages",
+        "price": 40,
+        "unit": "1 liter bottle",
+        "brand": "Coca-Cola",
+        "tags": ["vegan", "cold"]
+      },
+      {
+        "id": "BV003",
+        "name": "Mineral Water",
+        "category": "beverages",
+        "price": 20,
+        "unit": "1 liter bottle",
+        "brand": "Bisleri",
+        "tags": ["vegan"]
+      }
+    ]
+  }
+}

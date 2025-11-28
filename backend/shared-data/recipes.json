@@ -1,0 +1,64 @@
+{
+  "recipes": {
+    "peanut butter sandwich": {
+      "name": "Peanut Butter Sandwich",
+      "ingredients": ["GR001", "GR006"],
+      "description": "Simple peanut butter sandwich with whole wheat bread"
+    },
+    "pb sandwich": {
+      "name": "Peanut Butter Sandwich",
+      "ingredients": ["GR001", "GR006"],
+      "description": "Simple peanut butter sandwich with whole wheat bread"
+    },
+    "pasta": {
+      "name": "Pasta",
+      "ingredients": ["GR007", "GR008"],
+      "description": "Pasta with sauce for 2 people"
+    },
+    "pasta for two": {
+      "name": "Pasta for Two",
+      "ingredients": ["GR007", "GR008"],
+      "description": "Pasta with sauce for 2 people"
+    },
+    "grilled cheese sandwich": {
+      "name": "Grilled Cheese Sandwich",
+      "ingredients": ["GR002", "GR014", "GR005"],
+      "description": "Grilled cheese sandwich with white bread, cheese, and butter"
+    },
+    "cheese sandwich": {
+      "name": "Cheese Sandwich",
+      "ingredients": ["GR002", "GR014"],
+      "description": "Simple cheese sandwich"
+    },
+    "breakfast": {
+      "name": "Basic Breakfast",
+      "ingredients": ["GR002", "GR003", "GR004", "GR005"],
+      "description": "Bread, eggs, milk, and butter for breakfast"
+    },
+    "omelette": {
+      "name": "Omelette",
+      "ingredients": ["GR003", "GR011", "GR012", "GR010"],
+      "description": "Omelette with eggs, onions, tomatoes, and oil"
+    },
+    "fried rice": {
+      "name": "Fried Rice",
+      "ingredients": ["GR009", "GR011", "GR012", "GR010"],
+      "description": "Fried rice with vegetables"
+    },
+    "sandwich ingredients": {
+      "name": "Sandwich Ingredients",
+      "ingredients": ["GR001", "GR014", "GR012", "GR011"],
+      "description": "Bread, cheese, tomatoes, and onions for making sandwiches"
+    },
+    "quick snack": {
+      "name": "Quick Snack",
+      "ingredients": ["SN001", "SN002", "BV002"],
+      "description": "Chips, chocolate, and cola for a quick snack"
+    },
+    "movie snacks": {
+      "name": "Movie Snacks",
+      "ingredients": ["SN001", "SN004", "BV002"],
+      "description": "Chips, namkeen, and cola for movie time"
+    }
+  }
+}
