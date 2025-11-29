@@ -40,71 +40,127 @@ def load_recipes():
         return json.load(f)
 
 
-class FoodOrderingAgent(Agent):
-    """Food and grocery ordering assistant for FreshCart Express"""
-    
+class GameMasterAgent(Agent):
+    """A single-player Game Master (GM) for an interactive Cyberpunk 2077-style adventure.
+
+    The GM speaks in a cinematic, noir-cyberpunk tone, describes scenes, and prompts the player
+    to respond by voice. The GM remembers the player's past decisions, named characters,
+    and locations to maintain continuity across the session.
+    """
+
     def __init__(self) -> None:
-        # Load catalog and recipes when agent initializes
-        self.catalog = load_catalog()
-        self.recipes = load_recipes()
-        
-        # Build catalog summary for instructions
-        total_items = sum(len(items) for items in self.catalog['categories'].values())
-        categories = list(self.catalog['categories'].keys())
-        
-        super().__init__(
-            instructions=f"""You are a friendly food and grocery ordering assistant for {self.catalog['store_name']}.
+        # Memory structures the GM will maintain
+        self.memory = {
+            "player_name": None,
+            "decisions": [],
+            "named_characters": {},
+            "locations": {},
+            "notes": [],
+        }
 
-YOUR ROLE:
-You help customers order food and groceries quickly and easily. You have access to a catalog with {total_items} items across categories: {', '.join(categories)}.
+        # Path to write a simple transcript / history so the frontend or logs can display it
+        self.history_path = Path("shared-data/gameplay_log.json")
+        self.history_path.parent.mkdir(parents=True, exist_ok=True)
 
-GREETING:
-- Welcome the customer warmly
-- Introduce yourself: "Welcome to {self.catalog['store_name']}! I can help you order groceries, snacks, prepared food, and beverages."
-- Ask what they'd like to order today
+        instructions = (
+            "Universe: Cyberpunk 2077. "
+            "Tone: dramatic, noir, cinematic with occasional dry humor. "
+            "Role: You are the GM. You describe scenes and ask the player what they do. "
+            "Drive an interactive story using voice. Maintain continuity with the conversation history. "
+            "End every response with a short, direct prompt for player action: 'What do you do?'.\n\n"
+            "Behavior and constraints:\n"
+            "- Always present vivid sensory details (visual, audio, tactile) appropriate to a cyberpunk city.\n"
+            "- Keep the player's agency central: after each scene description, ask a single concise question prompting choice.\n"
+            "- Remember and reference the player's past decisions, names, and locations (store in memory).\n"
+            "- When the player speaks, transcribe and log the player's utterance so it is visible in the session transcript.\n"
+            "- Provide short stateless checks (e.g., success/failure) based on clear choices — keep mechanics simple and narrative-first.\n"
+            "- Never break character as the GM. Maintain immersion.\n\n"
+            "Start the session by introducing the setting, the player's apparent situation, and one immediate problem to solve. Use no longer than 3 short paragraphs for scene setup. End with 'What do you do?'")
 
-ORDERING CAPABILITIES:
+        super().__init__(instructions=instructions)
 
-1. **Specific Items** (FASTEST - Use This): 
-   - Customer says: "I want bread" or "Add milk to cart"
-   - Directly use add_to_cart with the item name (e.g., "bread", "milk")
-   - The tool will handle searching automatically
-   - Only use search_catalog if customer asks "What do you have?" or wants to browse
-   - Default to quantity 1 if not specified
+    async def _append_history(self, role: str, text: str):
+        entry = {
+            "timestamp": datetime.now().isoformat(),
+            "role": role,
+            "text": text,
+        }
+        try:
+            if self.history_path.exists():
+                with open(self.history_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            else:
+                data = []
+            data.append(entry)
+            with open(self.history_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+        except Exception:
+            logger.exception("Failed to append gameplay history")
 
-2. **Ingredients for Dishes** (SMART FEATURE):
-   - Customer says: "I need ingredients for a peanut butter sandwich" or "Get me pasta ingredients"
-   - Use get_recipe_ingredients tool with the dish name
-   - This automatically adds ALL required ingredients to cart in one call
-   - Confirm what was added
+    @function_tool
+    async def log_player_speech(self, transcript: Annotated[str, "The player's transcribed speech"]) -> str:
+        """Log the player's transcribed speech so it can be shown in UI and the GM can reference it."""
+        logger.info(f"Player said: {transcript}")
+        await self._append_history("player", transcript)
+        # Store an indexed note of last action
+        self.memory["decisions"].append({"type": "utterance", "text": transcript, "time": datetime.now().isoformat()})
+        return "Logged player speech."
 
-3. **Cart Management**:
-   - Use view_cart only when customer explicitly asks "What's in my cart?"
-   - Use remove_from_cart to remove items
-   - Use update_cart_quantity to change quantities
+    @function_tool
+    async def log_gm_message(self, message: Annotated[str, "The GM's message to the player"]) -> str:
+        """Record a GM message in the transcript so a UI can present both sides of the conversation."""
+        logger.info(f"GM: {message}")
+        await self._append_history("gm", message)
+        return "Logged GM message."
 
-4. **Order Completion**:
-   - When customer says "That's all", "Place order", "Checkout"
-   - Use place_order tool immediately (it will show cart and total)
-   - Confirm order placed
+    @function_tool
+    async def get_game_state(self) -> str:
+        """Return a concise summary of what the GM remembers about the session."""
+        state = {
+            "player_name": self.memory.get("player_name"),
+            "decisions_count": len(self.memory.get("decisions", [])),
+            "named_characters": list(self.memory.get("named_characters", {}).keys()),
+            "locations_known": list(self.memory.get("locations", {}).keys()),
+        }
+        return json.dumps(state)
 
-CONVERSATION STYLE:
-- Be quick and efficient - avoid unnecessary tool calls
-- Respond immediately after tool results
-- Keep responses concise
-- Ask for clarification only when truly needed
+    @function_tool
+    async def reset_game(self) -> str:
+        """Reset the current session memory (keeps transcript file)."""
+        self.memory = {"player_name": None, "decisions": [], "named_characters": {}, "locations": {}, "notes": []}
+        return "Game memory reset. The transcript file remains for review." 
 
-IMPORTANT RULES:
-- For "add X" requests: Use add_to_cart DIRECTLY (fastest)
-- For "ingredients for X": Use get_recipe_ingredients DIRECTLY
-- DON'T call search_catalog unless customer wants to browse
-- DON'T call view_cart after every add operation
-- Keep the conversation moving fast""",
+    async def on_enter(self) -> None:
+        """Called when the session starts — ask the player's name and character type.
+
+        This prompt is deliberately short and actionable so the frontend receives audio
+        immediately and the player can respond by voice. It also logs the GM's prompt
+        to the session transcript for display in the UI.
+        """
+
+        prompt = (
+            "Night City hums and bleeds neon. Before we dive in, tell me your name, "
+            "and choose what type of character you'd like to be in this world. "
+            "You can pick one of the options below or describe your own.\n\n"
+            "1) Netrunner — a shadowy hacker who bends the Net and breaches corporate systems.\n"
+            "2) Solo — a hardened combat specialist, a walking arsenal trained for violence.\n"
+            "3) Techie — a hardware and software engineer who rigs, mods, and invents.\n"
+            "4) Fixer — a well-connected broker who arranges jobs, favors, and black-market deals.\n"
+            "5) Nomad — a wanderer from the Badlands, skilled in survival and driving.\n\n"
+            "Tell me your name and pick a type (for example: 'My name is Alex, I'm a Netrunner'). What do you do?"
         )
-        
-        # Initialize cart
-        self.cart = {}  # Format: {item_id: {"item": item_data, "quantity": int}}
-        self.customer_name = None
+
+        try:
+            await self._append_history("gm", prompt)
+        except Exception:
+            logger.exception("failed to write initial gm history")
+
+        try:
+            handle = self.session.say(prompt)
+            # wait for playout so the session shows the agent as speaking
+            await handle
+        except Exception:
+            logger.exception("failed to play initial GM prompt")
 
     @function_tool
     async def search_catalog(
@@ -378,8 +434,8 @@ async def entrypoint(ctx: JobContext):
         # Text-to-speech (TTS) is your agent's voice, turning the LLM's text into speech that the user can hear
         # See all available models as well as voice selections at https://docs.livekit.io/agents/models/tts/
         tts=murf.TTS(
-                voice="en-US-matthew", 
-                style="Conversation",
+            voice="en-US-matthew",
+            style="Conversation",
                 tokenizer=tokenize.basic.SentenceTokenizer(min_sentence_len=2),
                 text_pacing=True
             ),
@@ -427,7 +483,7 @@ async def entrypoint(ctx: JobContext):
 
     # Start the session, which initializes the voice pipeline and warms up the models
     await session.start(
-        agent=FoodOrderingAgent(),
+        agent=GameMasterAgent(),
         room=ctx.room,
         room_input_options=RoomInputOptions(
             # For telephony applications, use `BVCTelephony` for best results

@@ -4,6 +4,13 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  /* Cyberpunk neon accents */
+  --neon-cyan: #00f7ff;
+  --neon-pink: #ff2dcb;
+  --neon-magenta: #ff00c8;
+  --neon-glow-cyan: 0 0 18px rgba(0, 247, 255, 0.28);
+  --neon-glow-pink: 0 0 18px rgba(255, 45, 203, 0.28);
+
   --radius: 0.625rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
@@ -123,6 +130,20 @@
 }
 
 @layer utils {
+  /* Neon chat bubbles */
+  .neon-gm {
+    background: linear-gradient(90deg, rgba(0,247,255,0.08), rgba(0,247,255,0.02));
+    color: var(--neon-cyan);
+    box-shadow: var(--neon-glow-cyan);
+    border: 1px solid rgba(0,247,255,0.12);
+  }
+
+  .neon-player {
+    background: linear-gradient(90deg, rgba(255,45,203,0.06), rgba(255,45,203,0.02));
+    color: var(--neon-pink);
+    box-shadow: var(--neon-glow-pink);
+    border: 1px solid rgba(255,45,203,0.12);
+  }
   .animate-text-shimmer {
     animation-delay: 0.5s;
     animation-duration: 3s;
