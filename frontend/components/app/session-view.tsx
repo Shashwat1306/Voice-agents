@@ -73,6 +73,12 @@ export const SessionView = ({
   const [chatOpen, setChatOpen] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
+  // Auto-open the chat when the session mounts so the transcript is visible
+  // immediately after clicking the start button.
+  useEffect(() => {
+    setChatOpen(true);
+  }, []);
+
   const controls: ControlBarControls = {
     leave: true,
     microphone: true,
@@ -102,6 +108,7 @@ export const SessionView = ({
         <Fade top className="absolute inset-x-4 top-0 h-40" />
         <ScrollArea ref={scrollAreaRef} className="px-4 pt-40 pb-[150px] md:px-6 md:pb-[180px]">
           <ChatTranscript
+            key={`chat-${messages.length}-${messages.at(-1)?.timestamp ?? 0}`}
             hidden={!chatOpen}
             messages={messages}
             className="mx-auto max-w-2xl space-y-3 transition-opacity duration-300 ease-out"

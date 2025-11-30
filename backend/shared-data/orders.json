@@ -1,0 +1,44 @@
+[
+  {
+    "order_id": "ORD-20251130-A992E4D0",
+    "session_id": "20251130_193112",
+    "items": [
+      {
+        "product_id": "notebook-001",
+        "name": "Spiral Notebook - A5",
+        "price": 199,
+        "currency": "INR",
+        "quantity": 1,
+        "size": "A5"
+      },
+      {
+        "product_id": "tshirt-002",
+        "name": "Cotton T-Shirt - White",
+        "price": 699,
+        "currency": "INR",
+        "quantity": 1,
+        "size": "L"
+      },
+      {
+        "product_id": "hoodie-003",
+        "name": "Zip Hoodie - Navy Blue",
+        "price": 1699,
+        "currency": "INR",
+        "quantity": 1,
+        "size": "L"
+      },
+      {
+        "product_id": "mug-001",
+        "name": "Ceramic Coffee Mug - Classic White",
+        "price": 450,
+        "currency": "INR",
+        "quantity": 1,
+        "size": null
+      }
+    ],
+    "total": 3047,
+    "currency": "INR",
+    "created_at": "2025-11-30T19:37:30.984973",
+    "status": "confirmed"
+  }
+]

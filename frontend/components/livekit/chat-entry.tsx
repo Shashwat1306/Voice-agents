@@ -51,9 +51,7 @@ export const ChatEntry = ({
       <span
         className={cn(
           'max-w-4/5 rounded-[20px] p-2',
-          messageOrigin === 'local'
-            ? 'ml-auto neon-player'
-            : 'mr-auto neon-gm'
+          messageOrigin === 'local' ? 'ml-auto shop-customer' : 'mr-auto shop-assistant'
         )}
         style={{ whiteSpace: 'pre-wrap' }}
       >
