@@ -68,7 +68,7 @@ export function useRoom(appConfig: AppConfig) {
     [appConfig]
   );
 
-  const startSession = useCallback(() => {
+  const startSession = useCallback((overrideName?: string) => {
     setIsSessionActive(true);
 
     if (room.state === 'disconnected') {
@@ -78,9 +78,35 @@ export function useRoom(appConfig: AppConfig) {
           preConnectBuffer: isPreConnectBufferEnabled,
         }),
         tokenSource
-          .fetch({ agentName: appConfig.agentName })
+          .fetch({ agentName: overrideName ?? appConfig.agentName })
           .then((connectionDetails) =>
-            room.connect(connectionDetails.serverUrl, connectionDetails.participantToken)
+            room.connect(connectionDetails.serverUrl, connectionDetails.participantToken).then(() => {
+              // publish a startup data message to notify any agent worker in the room
+              try {
+                const payload = JSON.stringify({ type: 'improv_start', player_name: overrideName ?? appConfig.agentName });
+                const topic = 'improv';
+                // debug: log the payload and topic to the browser console so we can verify what was sent
+                // eslint-disable-next-line no-console
+                console.debug('Publishing improv_start', { payload, topic });
+                // publish as a Uint8Array to guarantee bytes arrive on all runtimes
+                try {
+                  const encoder = new TextEncoder();
+                  const payloadBytes = encoder.encode(payload);
+                  room.localParticipant.publishData(payloadBytes, { topic, reliable: true });
+                } catch (e) {
+                  // fallback: publish string if encoding not available for any reason
+                  // eslint-disable-next-line no-console
+                  console.warn('TextEncoder failed, publishing string payload instead', e);
+                  // eslint-disable-next-line no-console
+                  console.debug('Publishing improv_start (string fallback)', { payload, topic });
+                  room.localParticipant.publishData(payload, { topic, reliable: true });
+                }
+              } catch (err) {
+                // non-fatal: log and continue
+                // eslint-disable-next-line no-console
+                console.warn('Failed to publish improv_start message', err);
+              }
+            })
           ),
       ]).catch((error) => {
         if (aborted.current) {
@@ -101,8 +127,39 @@ export function useRoom(appConfig: AppConfig) {
   }, [room, appConfig, tokenSource]);
 
   const endSession = useCallback(() => {
+    // publish an end-session signal to the room so the agent can clear state
+    try {
+      const payload = JSON.stringify({ type: 'improv_end' });
+      const topic = 'improv';
+      // eslint-disable-next-line no-console
+      console.debug('Publishing improv_end', { payload, topic });
+      try {
+        const encoder = new TextEncoder();
+        const payloadBytes = encoder.encode(payload);
+        room.localParticipant.publishData(payloadBytes, { topic, reliable: true });
+      } catch (e) {
+        // fallback to string publish
+        // eslint-disable-next-line no-console
+        console.warn('TextEncoder failed when publishing improv_end, sending string fallback', e);
+        room.localParticipant.publishData(payload, { topic, reliable: true });
+      }
+    } catch (err) {
+      // non-fatal
+      // eslint-disable-next-line no-console
+      console.warn('Failed to publish improv_end', err);
+    }
+
+    // set local flag and disconnect the room to ensure a fresh connection next time
     setIsSessionActive(false);
-  }, []);
+    try {
+      if (room.state !== 'disconnected') {
+        room.disconnect();
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('Error disconnecting room after endSession', e);
+    }
+  }, [room]);
 
   return { room, isSessionActive, startSession, endSession };
 }

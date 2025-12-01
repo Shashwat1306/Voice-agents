@@ -1,7 +1,8 @@
 import logging
 import json
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated, Optional, List, Dict
+import random
 from datetime import datetime
 import uuid
 from pydantic import Field
@@ -27,390 +28,219 @@ logger = logging.getLogger("agent")
 
 load_dotenv(".env.local")
 
-# Load product catalog
 
-def load_catalog():
-    """Load the product catalog from JSON file"""
-    content_path = Path("shared-data/product_catalog.json")
-    with open(content_path, "r") as f:
-        data = json.load(f)
-        return data['products']
+class ImprovHostAgent(Agent):
+    """Host for a single-player improv show called 'Improv Battle'."""
 
-# Load/save orders
-def load_orders():
-    """Load existing orders from JSON file"""
-    orders_path = Path("shared-data/orders.json")
-    if orders_path.exists():
-        with open(orders_path, "r") as f:
-            return json.load(f)
-    return []
-
-def save_orders(orders):
-    """Save orders to JSON file"""
-    orders_path = Path("shared-data/orders.json")
-    with open(orders_path, "w") as f:
-        json.dump(orders, f, indent=2)
-
-
-class EcommerceAgent(Agent):
-    """Voice Shopping Assistant following Agentic Commerce Protocol patterns"""
-    
     def __init__(self) -> None:
-        # Load product catalog and orders
-        self.catalog = load_catalog()
-        self.all_orders = load_orders()
-        
-        # Session-specific data
-        self.shopping_cart = []
-        self.last_shown_products = []  # Track products mentioned to user
-        self.session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-        
+        self.improv_state: Dict = {
+            "player_name": None,
+            "current_round": 0,
+            "max_rounds": 3,
+            "rounds": [],
+            "phase": "intro",
+        }
+
+        # Small curated list of clear, character-focused scenarios
+        self.scenarios: List[str] = [
+            "You are a barista who has to tell a customer that their latte is actually a portal to another dimension.",
+            "You are a time-travelling tour guide explaining modern smartphones to someone from the 1800s.",
+            "You are a restaurant waiter who must calmly tell a customer that their order has escaped the kitchen.",
+            "You are a customer trying to return an obviously cursed object to a very skeptical shop owner.",
+            "You are a weather forecaster who must explain why it's raining rubber ducks today.",
+        ]
+
         super().__init__(
-            instructions="""You are a helpful voice shopping assistant for an e-commerce store.
-
-🛍️ YOUR ROLE:
-You help customers discover products, answer questions about items, and complete purchases through natural conversation.
-
-📋 PRODUCT CATEGORIES WE CARRY:
-- Coffee Mugs & Drinkware (mugs, bottles)
-- Clothing (t-shirts, hoodies)
-- Bags & Backpacks
-- Stationery (notebooks, journals)
-
-💬 CONVERSATION STYLE:
-- Friendly, helpful, and enthusiastic about our products
-- Use natural language, not robotic catalog descriptions
-- Confirm important details (size, color, quantity) before ordering
-- Keep responses concise (2-3 sentences max)
-
-🔍 BROWSING PRODUCTS:
-When customers ask to see products:
-1. Use search_catalog to find matching items
-2. Present 2-3 relevant products at a time (don't overwhelm!)
-3. Include: name, price, and 1 key feature
-4. Remember what you showed them for follow-up questions
-
-Examples:
-- "Show me coffee mugs" → Call search_catalog(category="mug")
-- "Do you have black hoodies under 2000?" → Call search_catalog(category="clothing", product_type="hoodie", color="black", max_price=2000)
-- "What colors does that mug come in?" → Reference last_shown_products, call search_catalog for variants
-
-🛒 ADDING TO CART:
-When customer wants to buy:
-1. Identify which product (use product_id from last_shown_products)
-2. Confirm size/color if it's clothing
-3. Call add_to_cart with product_id and quantity
-4. Confirm addition: "Added [product name] to your cart!"
-
-Handle references intelligently:
-- "I'll take the second one" → Use last_shown_products[1]
-- "Add the black hoodie" → Find matching product from recent results
-- "Give me two of those mugs" → quantity=2
-
-📦 PLACING ORDERS:
-When customer is ready to checkout:
-1. Call view_cart to show current cart
-2. Confirm with customer
-3. Call create_order to finalize
-4. Read back order ID and total
-
-🎯 KEY RULES:
-1. ALWAYS search catalog before discussing products (don't make up items!)
-2. Track products you mention in conversation for easy reference
-3. Confirm details before adding to cart (especially size for clothing)
-4. Keep cart visible - remind customer what's in cart when relevant
-5. Be proactive: suggest related items, mention deals
-6. Handle ambiguity: ask clarifying questions if customer request is unclear
-
-🚫 DON'T:
-- List more than 3-4 products at once
-- Make up products not in catalog
-- Add items to cart without confirmation
-- Skip size confirmation for clothing
-- Be pushy or sales-y
-
-REMEMBER: This is voice conversation - be natural, concise, and helpful!
-""",
+            instructions=(
+                "You are the host of a TV improv show called 'Improv Battle'.\n"
+                "Adopt a high-energy, witty, and clear style. Explain rules briefly, set scenarios, listen, then react.\n"
+                "Reactions should vary: sometimes amused, sometimes unimpressed, sometimes pleasantly surprised."
+                " Be respectful and never abusive. Light teasing and constructive critique are allowed.\n"
+                "When the show ends, summarize the player's improv strengths and thank them."
+            )
         )
-    
+
+    def _choose_scenario(self) -> str:
+        return random.choice(self.scenarios)
+
+    def _generate_reaction(self, scenario: str, performance: str) -> str:
+        # Choose tone
+        tone = random.choices(["supportive", "neutral", "mildly_critical"], weights=[0.5, 0.3, 0.2])[0]
+
+        # Pick a short excerpt to reference if available
+        ref = None
+        if performance:
+            sentences = [s.strip() for s in performance.split(".") if s.strip()]
+            if sentences:
+                ref = sentences[0]
+
+        if tone == "supportive":
+            lead = "That was great — you really committed to the bit."
+            if ref:
+                lead += f" I especially loved '{ref}.'"
+        elif tone == "neutral":
+            lead = "Nicely played. You hit some strong choices there."
+            if ref:
+                lead += f" The line '{ref}.' gave a clear direction." 
+        else:
+            lead = "Interesting choices — a few things could land stronger."
+            if ref:
+                lead += f" Try leaning more into '{ref}.' next time to sell the premise."
+
+        # Add a quick actionable tip
+        tips = [
+            "Try stretching the moment and committing to smaller details.",
+            "Push the stakes higher — what's the worst that could happen?",
+            "Play with your voice and physical choices to sell the character.",
+            "You could have escalated the absurdity for bigger laughs.",
+        ]
+
+        tip = random.choice(tips)
+
+        return f"{lead} {tip}"
+
     @function_tool
-    async def search_catalog(
-        self,
-        category: Annotated[Optional[str], Field(default=None, description="Product category: 'mug', 'clothing', 'bottle', 'bag', 'stationery'")],
-        product_type: Annotated[Optional[str], Field(default=None, description="Specific type: 't-shirt', 'hoodie', 'notebook'")],
-        color: Annotated[Optional[str], Field(default=None, description="Color filter: 'white', 'black', 'blue', 'grey', etc.")],
-        max_price: Annotated[Optional[int], Field(default=None, description="Maximum price in INR")],
-        min_price: Annotated[Optional[int], Field(default=None, description="Minimum price in INR")],
-        keyword: Annotated[Optional[str], Field(default=None, description="Search keyword in name or description")],
-    ):
-        """
-        Search the product catalog with filters. Returns list of matching products.
-        Use this whenever customer asks about products or wants to browse.
-        """
-        logger.info(f"Searching catalog: category={category}, type={product_type}, color={color}, price={min_price}-{max_price}, keyword={keyword}")
-        
-        results = []
-        
-        for product in self.catalog:
-            # Apply filters
-            if category and product.get('category') != category:
-                continue
-            
-            if product_type and product.get('type') != product_type:
-                continue
-            
-            if color:
-                product_color = product.get('color', '').lower()
-                if color.lower() not in product_color:
-                    continue
-            
-            if max_price and product.get('price', 0) > max_price:
-                continue
-            
-            if min_price and product.get('price', 0) < min_price:
-                continue
-            
-            if keyword:
-                keyword_lower = keyword.lower()
-                searchable = f"{product.get('name', '')} {product.get('description', '')}".lower()
-                if keyword_lower not in searchable:
-                    continue
-            
-            results.append(product)
-        
-        # Store results for later reference
-        self.last_shown_products = results[:10]  # Keep top 10 for reference
-        
-        if not results:
-            return {
-                "success": True,
-                "count": 0,
-                "message": "No products found matching those criteria",
-                "products": []
-            }
-        
-        return {
-            "success": True,
-            "count": len(results),
-            "products": results,
-            "message": f"Found {len(results)} matching product(s)"
-        }
-    
+    async def get_improv_state(self):
+        return self.improv_state
+
     @function_tool
-    async def get_product_details(
-        self,
-        product_id: Annotated[str, "Product ID to get detailed information"]
-    ):
-        """
-        Get complete details for a specific product by ID.
-        Use when customer asks detailed questions about a specific item.
-        """
-        logger.info(f"Getting product details for: {product_id}")
-        
-        for product in self.catalog:
-            if product['id'] == product_id:
-                return {
-                    "success": True,
-                    "product": product
-                }
-        
-        return {
-            "success": False,
-            "message": f"Product {product_id} not found"
-        }
-    
+    async def start_game(self, player_name: Annotated[Optional[str], Field(default=None, description="Contestant name")]=None, max_rounds: Annotated[int, Field(default=3)] = 3):
+        # Initialize or reset state
+        if player_name:
+            self.improv_state['player_name'] = player_name
+        elif not self.improv_state.get('player_name'):
+            self.improv_state['player_name'] = "Contestant"
+
+        self.improv_state['current_round'] = 0
+        self.improv_state['max_rounds'] = max_rounds
+        self.improv_state['rounds'] = []
+        self.improv_state['phase'] = 'intro'
+
+        intro = (
+            f"Welcome to Improv Battle, {self.improv_state['player_name']}! "
+            "Rules: I'll give you a scenario, you'll improvise in-character, then say 'End scene' when you're done. "
+            f"We'll play {max_rounds} rounds. Ready? Let's begin!"
+        )
+
+        # Move to first scenario immediately
+        return {"message": intro}
+
     @function_tool
-    async def add_to_cart(
-        self,
-        product_id: Annotated[str, "Product ID to add to cart"],
-        quantity: Annotated[int, "Quantity to add"] = 1,
-        size: Annotated[str, "Size for clothing items (S, M, L, XL, XXL)"] = None,
-    ):
-        """
-        Add a product to the shopping cart.
-        For clothing, ALWAYS ask for size before calling this.
-        """
-        logger.info(f"Adding to cart: {product_id}, quantity={quantity}, size={size}")
-        
-        # Find the product
-        product = None
-        for p in self.catalog:
-            if p['id'] == product_id:
-                product = p
-                break
-        
-        if not product:
-            return {
-                "success": False,
-                "message": f"Product {product_id} not found in catalog"
-            }
-        
-        # Check if size is required
-        if product.get('category') == 'clothing' and not size:
-            available_sizes = product.get('sizes', [])
-            return {
-                "success": False,
-                "message": f"Size required for clothing. Available sizes: {', '.join(available_sizes)}",
-                "requires_size": True,
-                "available_sizes": available_sizes
-            }
-        
-        # Validate size if provided
-        if size and product.get('sizes'):
-            if size.upper() not in product.get('sizes', []):
-                return {
-                    "success": False,
-                    "message": f"Size {size} not available. Available sizes: {', '.join(product.get('sizes', []))}",
-                    "available_sizes": product.get('sizes', [])
-                }
-        
-        # Add to cart
-        cart_item = {
-            "product_id": product_id,
-            "name": product['name'],
-            "price": product['price'],
-            "currency": product['currency'],
-            "quantity": quantity,
-            "size": size.upper() if size else None
-        }
-        
-        self.shopping_cart.append(cart_item)
-        
-        subtotal = product['price'] * quantity
-        
-        return {
-            "success": True,
-            "message": f"Added {quantity}x {product['name']} to cart",
-            "cart_item": cart_item,
-            "item_subtotal": subtotal,
-            "cart_total": sum(item['price'] * item['quantity'] for item in self.shopping_cart)
-        }
-    
+    async def propose_scenario(self):
+        # Move to next round and present scenario
+        if self.improv_state['phase'] == 'done':
+            return {"message": "The show is over. Thank you for playing!"}
+
+        if self.improv_state['current_round'] >= self.improv_state['max_rounds']:
+            # finalize
+            self.improv_state['phase'] = 'done'
+            return {"message": "We've finished all rounds."}
+
+        self.improv_state['current_round'] += 1
+        scenario = self._choose_scenario()
+        round_entry = {"scenario": scenario, "host_reaction": None, "performance": None}
+        self.improv_state['rounds'].append(round_entry)
+        self.improv_state['phase'] = 'awaiting_improv'
+
+        prompt = (
+            f"Round {self.improv_state['current_round']} of {self.improv_state['max_rounds']}: {scenario} "
+            "Go! Improvise in-character and say 'End scene' when finished."
+        )
+
+        return {"message": prompt, "scenario": scenario}
+
     @function_tool
-    async def view_cart(self):
-        """
-        View current shopping cart contents and total.
-        Use when customer asks "what's in my cart?" or before checkout.
-        """
-        logger.info("Viewing shopping cart")
-        
-        if not self.shopping_cart:
-            return {
-                "success": True,
-                "empty": True,
-                "message": "Your cart is empty",
-                "items": [],
-                "total": 0
-            }
-        
-        total = sum(item['price'] * item['quantity'] for item in self.shopping_cart)
-        
-        return {
-            "success": True,
-            "empty": False,
-            "items": self.shopping_cart,
-            "item_count": len(self.shopping_cart),
-            "total": total,
-            "currency": "INR"
-        }
-    
+    async def record_performance(self, performance_text: Annotated[Optional[str], Field(default=None, description="What the player said/acted")]=None):
+        # If player name not set, try to set from first performance line
+        if not self.improv_state.get('player_name') and performance_text:
+            first_line = performance_text.strip().split('\n')[0]
+            if first_line:
+                # Take first two words as a simple name heuristic
+                parts = first_line.split()
+                if parts:
+                    self.improv_state['player_name'] = parts[0]
+
+        # Early exit phrases
+        if performance_text:
+            low = performance_text.lower()
+            if any(p in low for p in ["stop game", "end show", "quit game", "stop show"]):
+                self.improv_state['phase'] = 'done'
+                return {"message": "Got it — ending the show. Thanks for playing!", "ended": True}
+
+        # Find current round entry
+        if not self.improv_state['rounds']:
+            return {"message": "No active round. Call propose_scenario first."}
+
+        cur_idx = self.improv_state['current_round'] - 1
+        if cur_idx < 0:
+            return {"message": "No active round. Call propose_scenario first."}
+
+        # Save performance
+        self.improv_state['rounds'][cur_idx]['performance'] = performance_text
+        self.improv_state['phase'] = 'reacting'
+
+        # Generate host reaction
+        scenario = self.improv_state['rounds'][cur_idx]['scenario']
+        reaction = self._generate_reaction(scenario, performance_text or "")
+        self.improv_state['rounds'][cur_idx]['host_reaction'] = reaction
+
+        # Move phase and check if finished
+        if self.improv_state['current_round'] >= self.improv_state['max_rounds']:
+            self.improv_state['phase'] = 'done'
+            # produce closing summary
+            summary = self._closing_summary()
+            return {"reaction": reaction, "summary": summary}
+
+        self.improv_state['phase'] = 'awaiting_improv'
+
+        return {"reaction": reaction, "ended": False}
+
     @function_tool
-    async def remove_from_cart(
-        self,
-        index: Annotated[int, "Index of item to remove (0-based, from view_cart results)"]
-    ):
-        """
-        Remove an item from shopping cart by index.
-        Call view_cart first to show customer the cart with indices.
-        """
-        logger.info(f"Removing item at index {index} from cart")
-        
-        if index < 0 or index >= len(self.shopping_cart):
-            return {
-                "success": False,
-                "message": f"Invalid index. Cart has {len(self.shopping_cart)} items (indices 0-{len(self.shopping_cart)-1})"
-            }
-        
-        removed_item = self.shopping_cart.pop(index)
-        
-        return {
-            "success": True,
-            "message": f"Removed {removed_item['name']} from cart",
-            "removed_item": removed_item,
-            "cart_total": sum(item['price'] * item['quantity'] for item in self.shopping_cart)
+    async def reset_game(self):
+        """Clear the improv state so a fresh session can begin."""
+        self.improv_state = {
+            "player_name": None,
+            "current_round": 0,
+            "max_rounds": 3,
+            "rounds": [],
+            "phase": "intro",
         }
-    
-    @function_tool
-    async def create_order(self):
-        """
-        Create an order from current shopping cart.
-        This finalizes the purchase and clears the cart.
-        Call view_cart first to confirm with customer before creating order.
-        """
-        logger.info("Creating order from shopping cart")
-        
-        if not self.shopping_cart:
-            return {
-                "success": False,
-                "message": "Cannot create order - cart is empty"
-            }
-        
-        # Generate order
-        order_id = f"ORD-{datetime.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
-        
-        total = sum(item['price'] * item['quantity'] for item in self.shopping_cart)
-        
-        order = {
-            "order_id": order_id,
-            "session_id": self.session_id,
-            "items": self.shopping_cart.copy(),
-            "total": total,
-            "currency": "INR",
-            "created_at": datetime.now().isoformat(),
-            "status": "confirmed"
-        }
-        
-        # Save order
-        self.all_orders.append(order)
-        save_orders(self.all_orders)
-        
-        # Clear cart
-        cart_copy = self.shopping_cart.copy()
-        self.shopping_cart = []
-        
-        return {
-            "success": True,
-            "order": order,
-            "message": f"Order {order_id} created successfully!",
-            "order_id": order_id,
-            "total": total,
-            "items_purchased": len(cart_copy)
-        }
-    
-    @function_tool
-    async def get_last_order(self):
-        """
-        Get details of the most recent order from this session.
-        Use when customer asks "what did I just buy?" or "show my last order".
-        """
-        logger.info("Fetching last order")
-        
-        # Find orders from this session
-        session_orders = [o for o in self.all_orders if o.get('session_id') == self.session_id]
-        
-        if not session_orders:
-            return {
-                "success": False,
-                "message": "No orders found in this session"
-            }
-        
-        # Get most recent
-        last_order = session_orders[-1]
-        
-        return {
-            "success": True,
-            "order": last_order
-        }
+        return {"message": "State cleared. Ready for a fresh game."}
+
+    def _closing_summary(self) -> str:
+        # Analyze rounds to create a short summary
+        rounds = self.improv_state.get('rounds', [])
+        if not rounds:
+            return "Nice try — you didn't play any rounds."
+
+        strengths = []
+        for r in rounds:
+            perf = (r.get('performance') or "").lower()
+            if any(w in perf for w in ["i", "me", "my"]):
+                strengths.append("personal choices")
+            if any(w in perf for w in ["loud", "yell", "shout"]):
+                strengths.append("vocal energy")
+
+        strengths = list(dict.fromkeys(strengths))[:3]
+        if not strengths:
+            strengths_text = "character choices and playful risks"
+        else:
+            strengths_text = ", ".join(strengths)
+
+        standout_lines = []
+        for r in rounds:
+            p = r.get('performance') or ""
+            if p:
+                first = p.strip().split('.')
+                if first:
+                    standout_lines.append(first[0].strip())
+
+        standout = standout_lines[0] if standout_lines else "a few memorable moments"
+
+        return (
+            f"That's a wrap! {self.improv_state.get('player_name','Contestant')} seemed to favor {strengths_text}. "
+            f"Standout moment: '{standout}'. Thanks for playing Improv Battle — hope to see you on stage again!"
+        )
 
 
 async def prewarm(proc: JobProcess):
@@ -420,7 +250,7 @@ async def prewarm(proc: JobProcess):
 
 async def entrypoint(ctx: JobContext):
     """Main entry point for the agent"""
-    logger.info("Starting E-commerce Shopping Assistant agent")
+    logger.info("Starting Improv Battle host agent")
 
     # Create session
     session = AgentSession(
@@ -443,14 +273,201 @@ async def entrypoint(ctx: JobContext):
 
     ctx.add_shutdown_callback(log_usage)
 
-    # Start the session
+    # Instantiate and start the session with Improv host agent
+    agent = ImprovHostAgent()
+
+    # Attempt to seed the agent's player name from the room configuration
+    # (the connection token may include a `roomConfig` with agents info).
+    try:
+        detected_name = None
+        room_obj = getattr(ctx, 'room', None)
+        if room_obj is not None:
+            # Try a few common attribute names that may contain the room config
+            for attr in ('room_config', 'roomConfig', 'config', 'roomConfigJson'):
+                conf = getattr(room_obj, attr, None)
+                if conf:
+                    try:
+                        # conf may already be a dict-like object
+                        if isinstance(conf, dict):
+                            agents = conf.get('agents')
+                        else:
+                            # some runtimes provide an object/string; try to coerce to json
+                            agents = None
+                            try:
+                                parsed = json.loads(str(conf))
+                                agents = parsed.get('agents')
+                            except Exception:
+                                agents = None
+
+                        if agents and isinstance(agents, (list, tuple)) and len(agents) > 0:
+                            a0 = agents[0]
+                            if isinstance(a0, dict):
+                                detected_name = a0.get('agent_name') or a0.get('agentName')
+                            else:
+                                # try to coerce
+                                try:
+                                    a0j = json.loads(str(a0))
+                                    detected_name = a0j.get('agent_name') or a0j.get('agentName')
+                                except Exception:
+                                    detected_name = None
+                            if detected_name:
+                                break
+                    except Exception:
+                        # keep trying other attrs
+                        continue
+
+        if detected_name:
+            logger.info('Seeding improv player_name from room config: %s', detected_name)
+            # call start_game synchronously (no TTS) to set the state so any auto-greeting uses the name
+            try:
+                await agent.start_game(player_name=detected_name)
+            except Exception:
+                logger.exception('Failed to seed agent state with detected player name')
+    except Exception:
+        logger.exception('Error while attempting to detect agentName from ctx.room')
+
     await session.start(
-        agent=EcommerceAgent(),
+        agent=agent,
         room=ctx.room,
         room_input_options=RoomInputOptions(
             noise_cancellation=noise_cancellation.BVC(),
         ),
     )
+
+    # Listen for data messages on the room to trigger game start.
+    # The frontend publishes a JSON payload on topic 'improv' with {type:'improv_start', player_name: '...' }
+    def _handle_data_event(*args, **kwargs):
+        # run in background asyncio task
+        async def _process():
+            try:
+                logger.info(f"data event args={args} kwargs={kwargs}")
+
+                # attempt to find a payload string in args or kwargs (many SDKs differ)
+                payload_text = None
+                topic = None
+
+                def _extract_from_obj(obj):
+                    # tries multiple ways to find payload text on an object
+                    if obj is None:
+                        return None, None
+                    # raw bytes
+                    if isinstance(obj, (bytes, bytearray)):
+                        try:
+                            return obj.decode('utf-8'), None
+                        except Exception:
+                            return None, None
+                    # raw string
+                    if isinstance(obj, str):
+                        if obj.strip().startswith('{'):
+                            return obj, None
+                        return None, None
+                    # dict-like
+                    if isinstance(obj, dict):
+                        # look for common keys
+                        for k in ('data', 'payload', 'body', 'message'):
+                            if k in obj:
+                                v = obj[k]
+                                if isinstance(v, (bytes, bytearray)):
+                                    try:
+                                        return v.decode('utf-8'), obj.get('topic') or obj.get('topicName')
+                                    except Exception:
+                                        return None, None
+                                if isinstance(v, str) and v.strip().startswith('{'):
+                                    return v, obj.get('topic') or obj.get('topicName')
+                        return None, None
+                    # object with attributes
+                    for attr in ('data', 'payload', 'body', 'message'):
+                        if hasattr(obj, attr):
+                            v = getattr(obj, attr)
+                            if isinstance(v, (bytes, bytearray)):
+                                try:
+                                    return v.decode('utf-8'), getattr(obj, 'topic', None)
+                                except Exception:
+                                    return None, None
+                            if isinstance(v, str) and v.strip().startswith('{'):
+                                return v, getattr(obj, 'topic', None)
+                    return None, None
+
+                # scan positional args first
+                for a in args:
+                    txt, t = _extract_from_obj(a)
+                    if txt:
+                        payload_text = txt
+                        topic = topic or t
+                        break
+
+                # if not found, scan kwargs values
+                if not payload_text:
+                    for v in kwargs.values():
+                        txt, t = _extract_from_obj(v)
+                        if txt:
+                            payload_text = txt
+                            topic = topic or t
+                            break
+
+                if not payload_text:
+                    # last resort: log the reprs to aid debugging
+                    try:
+                        args_repr = [repr(a) for a in args]
+                        kwargs_repr = {k: repr(v) for k, v in kwargs.items()}
+                    except Exception:
+                        args_repr = str(args)
+                        kwargs_repr = str(kwargs)
+                    logger.debug('No payload text found in data event. args=%s kwargs=%s', args_repr, kwargs_repr)
+                    return
+
+                try:
+                    payload = json.loads(payload_text)
+                except Exception:
+                    logger.debug('data payload not json: %s', payload_text)
+                    return
+
+                if payload.get('type') != 'improv_start':
+                    # handle end message as well
+                    if payload.get('type') == 'improv_end':
+                        try:
+                            await agent.reset_game()
+                            logger.info('Received improv_end: cleared agent state')
+                        except Exception:
+                            logger.exception('Failed to reset agent state on improv_end')
+                    return
+
+                player_name = payload.get('player_name') or payload.get('name')
+
+                # call agent tools to initialize and start the first scenario
+                try:
+                    # set player name and get intro message
+                    intro = await agent.start_game(player_name=player_name)
+                    # ask the agent session to generate a reply (speak the intro)
+                    try:
+                        await agent.session.generate_reply(user_input=intro.get('message'), tool_choice='none')
+                    except Exception as e:
+                        logger.exception('Failed to generate intro reply: %s', e)
+
+                    # propose the first scenario and speak it
+                    scenario_resp = await agent.propose_scenario()
+                    try:
+                        await agent.session.generate_reply(user_input=scenario_resp.get('message'), tool_choice='none')
+                    except Exception as e:
+                        logger.exception('Failed to generate scenario reply: %s', e)
+                except Exception:
+                    logger.exception('Failed to start improv game from data message')
+
+            except Exception:
+                logger.exception('Error processing data event')
+
+        import asyncio
+
+        asyncio.create_task(_process())
+
+    # register for data events (some runtimes use 'data_received')
+    try:
+        ctx.room.on('data_received', _handle_data_event)
+    except Exception:
+        try:
+            ctx.room.on('data', _handle_data_event)
+        except Exception:
+            logger.warning('Unable to register data event handler on room')
 
     # Join the room and connect to the user
     await ctx.connect()

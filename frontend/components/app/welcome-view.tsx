@@ -1,3 +1,4 @@
+import React from 'react';
 import { Button } from '@/components/livekit/button';
 
 function WelcomeImage() {
@@ -20,7 +21,7 @@ function WelcomeImage() {
 
 interface WelcomeViewProps {
   startButtonText: string;
-  onStartCall: () => void;
+  onStartCall: (name?: string) => void;
 }
 
 export const WelcomeView = ({
@@ -28,32 +29,48 @@ export const WelcomeView = ({
   onStartCall,
   ref,
 }: React.ComponentProps<'div'> & WelcomeViewProps) => {
+  const [name, setName] = React.useState('');
+
+  const handleStart = () => {
+    onStartCall(name?.trim() || undefined);
+  };
+
   return (
     <div ref={ref}>
-      <section className="bg-background flex flex-col items-center justify-center text-center">
+      <section className="bg-background flex flex-col items-center justify-center text-center px-4">
         <WelcomeImage />
 
+        <h1 className="text-foreground text-2xl font-bold mb-2">Welcome to Improv Battle</h1>
         <p className="text-foreground max-w-prose pt-1 leading-6 font-medium">
-          Chat live with your voice AI agent
+          Get ready to take the stage. I'll give you short, playful scenarios — you improvise, then say
+          "End scene" and I'll react. Keep it fun, bold, and in-character.
         </p>
 
-        <Button variant="primary" size="lg" onClick={onStartCall} className="mt-6 w-64 font-mono">
-          {startButtonText}
-        </Button>
+        <div className="mt-6">
+          <input
+            aria-label="Stage name"
+            placeholder="Enter your stage name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="rounded-md border px-3 py-2 w-64 text-sm"
+          />
+
+          <div>
+            <Button
+              variant="primary"
+              size="lg"
+              onClick={handleStart}
+              className="mt-4 w-64 font-mono"
+            >
+              {startButtonText}
+            </Button>
+          </div>
+        </div>
       </section>
 
       <div className="fixed bottom-5 left-0 flex w-full items-center justify-center">
         <p className="text-muted-foreground max-w-prose pt-1 text-xs leading-5 font-normal text-pretty md:text-sm">
-          Need help getting set up? Check out the{' '}
-          <a
-            target="_blank"
-            rel="noopener noreferrer"
-            href="https://docs.livekit.io/agents/start/voice-ai/"
-            className="underline"
-          >
-            Voice AI quickstart
-          </a>
-          .
+          Tip: use a fun stage name and lean into character choices — the wilder, the better!
         </p>
       </div>
     </div>
